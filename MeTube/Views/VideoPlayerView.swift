@@ -244,7 +244,7 @@ struct YouTubePlayerView: UIViewRepresentable {
     var onError: ((String) -> Void)?
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(videoId: videoId, onLoaded: onLoaded, onError: onError)
+        Coordinator(onLoaded: onLoaded, onError: onError)
     }
     
     func makeUIView(context: Context) -> WKWebView {
@@ -310,7 +310,7 @@ struct YouTubePlayerView: UIViewRepresentable {
         var onLoaded: (() -> Void)?
         var onError: ((String) -> Void)?
         
-        init(videoId: String, onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
+        init(onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
             self.loadedVideoId = nil
             self.onLoaded = onLoaded
             self.onError = onError
