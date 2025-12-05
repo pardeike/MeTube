@@ -115,6 +115,7 @@ final class YouTubeStreamExtractor {
     
     /// Extract stream URL using YouTube's Innertube API
     private func extractViaInnertubeAPI(videoId: String) async throws -> URL {
+        appLog("extractViaInnertubeAPI starting for: \(videoId)", category: .player, level: .debug)
         let apiURL = URL(string: "https://www.youtube.com/youtubei/v1/player")!
         
         var request = URLRequest(url: apiURL)
@@ -125,9 +126,11 @@ final class YouTubeStreamExtractor {
         // Get device information dynamically
         let deviceModel = getDeviceModelIdentifier()
         let osVersion = UIDevice.current.systemVersion
+        appLog("Device info: model=\(deviceModel), OS=\(osVersion)", category: .player, level: .debug)
         
         // Calculate a signature timestamp based on current date (days since epoch)
         let signatureTimestamp = calculateSignatureTimestamp()
+        appLog("Signature timestamp: \(signatureTimestamp)", category: .player, level: .debug)
         
         // Innertube client context for iOS
         let requestBody: [String: Any] = [
@@ -154,18 +157,28 @@ final class YouTubeStreamExtractor {
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+            appLog("Request body serialized successfully", category: .player, level: .debug)
         } catch {
             appLog("Failed to serialize request body: \(error)", category: .player, level: .error)
             throw StreamExtractionError.parsingError
         }
         
+        appLog("Making network request to YouTube API", category: .player, level: .debug)
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw StreamExtractionError.networkError(NSError(domain: "HTTPError", code: (response as? HTTPURLResponse)?.statusCode ?? 0))
+        guard let httpResponse = response as? HTTPURLResponse else {
+            appLog("Invalid HTTP response received", category: .player, level: .error)
+            throw StreamExtractionError.networkError(NSError(domain: "HTTPError", code: 0))
         }
         
+        appLog("HTTP response status: \(httpResponse.statusCode)", category: .player, level: .debug)
+        
+        guard httpResponse.statusCode == 200 else {
+            appLog("Non-200 status code: \(httpResponse.statusCode)", category: .player, level: .error)
+            throw StreamExtractionError.networkError(NSError(domain: "HTTPError", code: httpResponse.statusCode))
+        }
+        
+        appLog("Response received, parsing player response (\(data.count) bytes)", category: .player, level: .debug)
         return try parsePlayerResponse(data)
     }
     
@@ -190,8 +203,11 @@ final class YouTubeStreamExtractor {
     
     /// Extract stream URL using the video info endpoint (fallback)
     private func extractViaVideoInfo(videoId: String) async throws -> URL {
+        appLog("extractViaVideoInfo starting for: \(videoId)", category: .player, level: .debug)
+        
         // Try getting video info via the get_video_info-style endpoint
         guard let infoURL = URL(string: "https://www.youtube.com/watch?v=\(videoId)&pbj=1") else {
+            appLog("Failed to create video info URL", category: .player, level: .error)
             throw StreamExtractionError.invalidVideoId
         }
         
@@ -199,28 +215,64 @@ final class YouTubeStreamExtractor {
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
-        let (data, _) = try await URLSession.shared.data(for: request)
+        appLog("Making request to video info endpoint", category: .player, level: .debug)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            appLog("Video info response status: \(httpResponse.statusCode)", category: .player, level: .debug)
+        }
+        appLog("Video info response: \(data.count) bytes", category: .player, level: .debug)
         
         return try parsePlayerResponse(data)
     }
     
     /// Parse the player response to extract the best stream URL
     private func parsePlayerResponse(_ data: Data) throws -> URL {
+        appLog("parsePlayerResponse called with \(data.count) bytes", category: .player, level: .debug)
+        
         // Try parsing as dictionary first (direct API response)
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let sd = json["streamingData"] as? [String: Any] {
-                return try extractStreamFromData(sd)
+            appLog("Parsed JSON as dictionary, keys: \(json.keys.joined(separator: ", "))", category: .player, level: .debug)
+            
+            // Check for playability status
+            if let playabilityStatus = json["playabilityStatus"] as? [String: Any] {
+                let status = playabilityStatus["status"] as? String ?? "unknown"
+                let reason = playabilityStatus["reason"] as? String
+                appLog("Playability status: \(status), reason: \(reason ?? "none")", category: .player, level: .debug)
+                
+                if status != "OK" {
+                    appLog("Video not playable: \(status) - \(reason ?? "no reason")", category: .player, level: .warning)
+                }
             }
+            
+            if let sd = json["streamingData"] as? [String: Any] {
+                appLog("Found streamingData in response", category: .player, level: .debug)
+                return try extractStreamFromData(sd)
+            } else {
+                appLog("No streamingData found in dictionary response", category: .player, level: .warning)
+            }
+        } else {
+            appLog("Could not parse data as dictionary", category: .player, level: .debug)
         }
         
         // Try parsing as array (pbj=1 endpoint response)
         if let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            for item in array {
+            appLog("Parsed JSON as array with \(array.count) items", category: .player, level: .debug)
+            for (index, item) in array.enumerated() {
                 if let playerResponse = item["playerResponse"] as? [String: Any],
                    let sd = playerResponse["streamingData"] as? [String: Any] {
+                    appLog("Found streamingData in array item \(index)", category: .player, level: .debug)
                     return try extractStreamFromData(sd)
                 }
             }
+            appLog("No streamingData found in array response", category: .player, level: .warning)
+        } else {
+            appLog("Could not parse data as array either", category: .player, level: .debug)
+        }
+        
+        // Log a sample of the response for debugging
+        if let responseString = String(data: data.prefix(500), encoding: .utf8) {
+            appLog("Response preview: \(responseString)", category: .player, level: .debug)
         }
         
         throw StreamExtractionError.parsingError
@@ -228,21 +280,27 @@ final class YouTubeStreamExtractor {
     
     /// Extract best stream URL from streaming data
     private func extractStreamFromData(_ streamingData: [String: Any]) throws -> URL {
+        appLog("extractStreamFromData called, keys: \(streamingData.keys.joined(separator: ", "))", category: .player, level: .debug)
+        
         // Collect all available streams
         var streams: [VideoStream] = []
         
         // Check formats (combined audio+video streams)
         if let formats = streamingData["formats"] as? [[String: Any]] {
+            appLog("Found \(formats.count) combined formats", category: .player, level: .debug)
             for format in formats {
                 if let stream = parseStreamFormat(format) {
                     streams.append(stream)
                 }
             }
+        } else {
+            appLog("No 'formats' array found in streamingData", category: .player, level: .debug)
         }
         
         // Check adaptiveFormats (separate audio/video streams)
         // We prefer combined formats, but adaptive can be used as fallback
         if streams.isEmpty, let adaptiveFormats = streamingData["adaptiveFormats"] as? [[String: Any]] {
+            appLog("Found \(adaptiveFormats.count) adaptive formats (checking for video streams)", category: .player, level: .debug)
             for format in adaptiveFormats {
                 // Only get video streams with audio or video-only streams
                 if let mimeType = format["mimeType"] as? String,
@@ -254,11 +312,15 @@ final class YouTubeStreamExtractor {
             }
         }
         
+        appLog("Total streams collected: \(streams.count)", category: .player, level: .debug)
+        
         // Also check for HLS manifest URL (best for iOS)
         if let hlsManifestUrl = streamingData["hlsManifestUrl"] as? String,
            let url = URL(string: hlsManifestUrl) {
-            appLog("Found HLS manifest URL", category: .player, level: .success)
+            appLog("Found HLS manifest URL - using HLS for playback", category: .player, level: .success)
             return url
+        } else {
+            appLog("No HLS manifest URL found", category: .player, level: .debug)
         }
         
         // Sort streams by quality and pick the best one
@@ -266,6 +328,7 @@ final class YouTubeStreamExtractor {
         
         guard let bestStream = streams.first,
               let url = URL(string: bestStream.url) else {
+            appLog("No playable streams found", category: .player, level: .error)
             throw StreamExtractionError.noStreamAvailable
         }
         
