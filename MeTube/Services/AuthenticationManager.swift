@@ -9,6 +9,37 @@ import Foundation
 import AuthenticationServices
 import Security
 
+// MARK: - OAuth Configuration
+
+/// OAuth configuration constants
+/// These should match the bundle identifier and URL scheme in Info.plist
+enum OAuthConfig {
+    /// The app's bundle identifier, used for URL scheme
+    static let bundleIdentifier = "com.metube.app"
+    
+    /// OAuth callback path
+    static let callbackPath = "oauth2callback"
+    
+    /// Full redirect URI for OAuth flow
+    static var redirectUri: String {
+        return "\(bundleIdentifier):/\(callbackPath)"
+    }
+    
+    /// URL scheme for authentication callbacks
+    static var urlScheme: String {
+        return bundleIdentifier
+    }
+    
+    /// Google OAuth token endpoint
+    static let tokenURL = URL(string: "https://oauth2.googleapis.com/token")!
+    
+    /// Google OAuth authorization endpoint
+    static let authURL = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+    
+    /// Required OAuth scopes for YouTube read access
+    static let scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
+}
+
 /// Manages OAuth authentication for YouTube API
 class AuthenticationManager: NSObject, ObservableObject {
     @Published var isAuthenticated: Bool = false
@@ -19,24 +50,11 @@ class AuthenticationManager: NSObject, ObservableObject {
     private let refreshTokenKey = "com.metube.oauth.refreshToken"
     private let expirationKey = "com.metube.oauth.expiration"
     
-    // These would be set from Google Cloud Console
-    // For security, these should be stored in a configuration file or environment
+    // Client ID from Google Cloud Console
+    // For security, this is stored in UserDefaults after user configuration
     private var clientId: String {
-        // In production, load from GoogleService-Info.plist or secure config
         return UserDefaults.standard.string(forKey: "GoogleClientId") ?? ""
     }
-    
-    private var redirectUri: String {
-        // This should match the URL scheme registered in the app
-        return "com.metube.app:/oauth2callback"
-    }
-    
-    private let scopes = [
-        "https://www.googleapis.com/auth/youtube.readonly"
-    ]
-    
-    private let tokenURL = URL(string: "https://oauth2.googleapis.com/token")!
-    private let authURL = URL(string: "https://accounts.google.com/o/oauth2/v2/auth")!
     
     private var webAuthSession: ASWebAuthenticationSession?
     
@@ -86,12 +104,12 @@ class AuthenticationManager: NSObject, ObservableObject {
         error = nil
         
         // Build authorization URL
-        var components = URLComponents(url: authURL, resolvingAgainstBaseURL: false)!
+        var components = URLComponents(url: OAuthConfig.authURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: clientId),
-            URLQueryItem(name: "redirect_uri", value: redirectUri),
+            URLQueryItem(name: "redirect_uri", value: OAuthConfig.redirectUri),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: scopes.joined(separator: " ")),
+            URLQueryItem(name: "scope", value: OAuthConfig.scopes.joined(separator: " ")),
             URLQueryItem(name: "access_type", value: "offline"),
             URLQueryItem(name: "prompt", value: "consent")
         ]
@@ -103,7 +121,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
         
         // Create and start authentication session
-        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "com.metube.app") { [weak self] callbackURL, error in
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: OAuthConfig.urlScheme) { [weak self] callbackURL, error in
             Task { @MainActor in
                 await self?.handleAuthCallback(callbackURL: callbackURL, error: error)
             }
@@ -152,14 +170,14 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func exchangeCodeForToken(code: String) async {
-        var request = URLRequest(url: tokenURL)
+        var request = URLRequest(url: OAuthConfig.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
         let body = [
             "code": code,
             "client_id": clientId,
-            "redirect_uri": redirectUri,
+            "redirect_uri": OAuthConfig.redirectUri,
             "grant_type": "authorization_code"
         ]
         
@@ -190,7 +208,7 @@ class AuthenticationManager: NSObject, ObservableObject {
             return
         }
         
-        var request = URLRequest(url: tokenURL)
+        var request = URLRequest(url: OAuthConfig.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         

@@ -28,12 +28,21 @@ enum CloudKitError: LocalizedError {
     }
 }
 
+// MARK: - Configuration
+
+/// CloudKit configuration constants
+enum CloudKitConfig {
+    /// The iCloud container identifier for the app
+    /// This should match the container configured in the Apple Developer Portal
+    static let containerIdentifier = "iCloud.com.metube.app"
+}
+
 /// Service for managing video watch status in CloudKit
 class CloudKitService {
     private let container: CKContainer
     private let privateDatabase: CKDatabase
     
-    init(containerIdentifier: String = "iCloud.com.metube.app") {
+    init(containerIdentifier: String = CloudKitConfig.containerIdentifier) {
         self.container = CKContainer(identifier: containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
     }

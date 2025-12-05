@@ -8,6 +8,14 @@
 import Foundation
 import Combine
 
+// MARK: - Feed Configuration
+
+/// Configuration constants for the feed
+enum FeedConfig {
+    /// Number of videos to fetch per channel on refresh
+    static let videosPerChannel = 10
+}
+
 /// ViewModel for managing the subscription feed
 @MainActor
 class FeedViewModel: ObservableObject {
@@ -95,7 +103,7 @@ class FeedViewModel: ObservableObject {
                             return try await youtubeService.fetchChannelVideos(
                                 channel: channel,
                                 accessToken: accessToken,
-                                maxResults: 10
+                                maxResults: FeedConfig.videosPerChannel
                             )
                         } catch {
                             print("Error fetching videos for \(channel.name): \(error)")
