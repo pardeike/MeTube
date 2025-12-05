@@ -71,6 +71,12 @@ struct VideoStream: Codable {
 @MainActor
 final class YouTubeStreamExtractor {
     
+    /// Shared instance for reuse across video player views
+    static let shared = YouTubeStreamExtractor()
+    
+    /// YouTube iOS client version - may need periodic updates
+    private let clientVersion = "19.29.1"
+    
     init() {
         appLog("YouTubeStreamExtractor initialized", category: .player, level: .info)
     }
@@ -122,7 +128,7 @@ final class YouTubeStreamExtractor {
             "context": [
                 "client": [
                     "clientName": "IOS",
-                    "clientVersion": "19.29.1",
+                    "clientVersion": clientVersion,
                     "deviceMake": "Apple",
                     "deviceModel": deviceModel,
                     "platform": "MOBILE",
@@ -139,7 +145,12 @@ final class YouTubeStreamExtractor {
             ]
         ]
         
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            appLog("Failed to serialize request body: \(error)", category: .player, level: .error)
+            throw StreamExtractionError.parsingError
+        }
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -190,32 +201,28 @@ final class YouTubeStreamExtractor {
     
     /// Parse the player response to extract the best stream URL
     private func parsePlayerResponse(_ data: Data) throws -> URL {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw StreamExtractionError.parsingError
+        // Try parsing as dictionary first (direct API response)
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let sd = json["streamingData"] as? [String: Any] {
+                return try extractStreamFromData(sd)
+            }
         }
         
-        // Navigate through the response structure
-        var streamingData: [String: Any]?
-        
-        // Direct response format
-        if let sd = json["streamingData"] as? [String: Any] {
-            streamingData = sd
-        }
-        // Array response format (pbj=1 endpoint)
-        else if let array = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
+        // Try parsing as array (pbj=1 endpoint response)
+        if let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
             for item in array {
                 if let playerResponse = item["playerResponse"] as? [String: Any],
                    let sd = playerResponse["streamingData"] as? [String: Any] {
-                    streamingData = sd
-                    break
+                    return try extractStreamFromData(sd)
                 }
             }
         }
         
-        guard let streamingData = streamingData else {
-            throw StreamExtractionError.noStreamAvailable
-        }
-        
+        throw StreamExtractionError.parsingError
+    }
+    
+    /// Extract best stream URL from streaming data
+    private func extractStreamFromData(_ streamingData: [String: Any]) throws -> URL {
         // Collect all available streams
         var streams: [VideoStream] = []
         
