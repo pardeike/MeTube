@@ -164,23 +164,34 @@ struct FeedView: View {
                 QuotaInfoView(quotaInfo: feedViewModel.quotaInfo, lastRefresh: feedViewModel.lastRefreshDate)
             }
             .fullScreenCover(isPresented: $showingPlayer) {
+                let _ = appLog("fullScreenCover content building, selectedVideo: \(selectedVideo?.id ?? "nil")", category: .ui, level: .debug)
                 if let video = selectedVideo {
+                    let _ = appLog("Creating VideoPlayerView for video: \(video.id)", category: .ui, level: .info)
                     let nextVideo = getNextVideo(after: video)
                     VideoPlayerView(
                         video: video,
                         onDismiss: {
+                            appLog("VideoPlayerView onDismiss called", category: .ui, level: .info)
                             showingPlayer = false
                         },
                         onMarkWatched: {
+                            appLog("VideoPlayerView onMarkWatched called", category: .ui, level: .info)
                             Task {
                                 await feedViewModel.markAsWatched(video)
                             }
                         },
                         nextVideo: nextVideo,
                         onNextVideo: { next in
+                            appLog("VideoPlayerView onNextVideo called: \(next.id)", category: .ui, level: .info)
                             selectedVideo = next
                         }
                     )
+                } else {
+                    let _ = appLog("fullScreenCover: selectedVideo is nil!", category: .ui, level: .error)
+                    Color.black
+                        .onAppear {
+                            appLog("Empty fullScreenCover appeared (selectedVideo was nil)", category: .ui, level: .error)
+                        }
                 }
             }
         }
