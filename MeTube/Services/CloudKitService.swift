@@ -282,54 +282,29 @@ class CloudKitService {
     private func prepareUsersSchema() async -> Bool {
         appLog("Checking Users schema", category: .cloudKit, level: .debug)
         
-        // The Users record type is a built-in CloudKit type
-        // We need to perform a query to trigger index-related errors
-        // Query for the current user's record using recordName
+        // The Users record type is a built-in CloudKit type stored in the public database
+        // We can verify it's accessible by fetching the current user's record
         do {
-            // First get the current user's record ID
+            // Get the current user's record ID
             let userRecordId = try await container.userRecordID()
             
-            // Try a query that would use the recordName index
-            // This is more likely to trigger index-related errors than a direct fetch
-            let predicate = NSPredicate(format: "recordID = %@", userRecordId)
-            let query = CKQuery(recordType: "Users", predicate: predicate)
-            
-            let operation = CKQueryOperation(query: query)
-            operation.resultsLimit = 1
-            
-            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CKRecord], Error>) in
-                var records: [CKRecord] = []
-                
-                operation.recordMatchedBlock = { _, result in
-                    if case .success(let record) = result {
-                        records.append(record)
-                    }
-                }
-                
-                operation.queryResultBlock = { result in
-                    switch result {
-                    case .success:
-                        continuation.resume(returning: records)
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
-                }
-                
-                privateDatabase.add(operation)
-            }
+            // Fetch the user record from public database
+            // Users records are stored in the public database, not private
+            let publicDatabase = container.publicCloudDatabase
+            _ = try await publicDatabase.record(for: userRecordId)
             
             appLog("Users schema is ready", category: .cloudKit, level: .success)
             return true
         } catch let error as CKError {
             if error.code == .unknownItem {
-                // User record doesn't exist yet - this is OK
+                // User record doesn't exist yet - this is OK, CloudKit will create it
                 appLog("User record doesn't exist yet (will be created by CloudKit)", category: .cloudKit, level: .info)
                 return true
             }
             
             // Check for query/index errors related to Users type
             if isIndexError(error) {
-                appLog("Users schema: 'recordName' field index is not configured", category: .cloudKit, level: .warning)
+                appLog("Users schema: 'recordName' field may not be properly configured", category: .cloudKit, level: .warning)
                 return false
             }
             
