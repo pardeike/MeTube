@@ -283,10 +283,41 @@ class CloudKitService {
         appLog("Checking Users schema", category: .cloudKit, level: .debug)
         
         // The Users record type is a built-in CloudKit type
-        // Try to fetch the current user's record
+        // We need to perform a query to trigger index-related errors
+        // Query for the current user's record using recordName
         do {
+            // First get the current user's record ID
             let userRecordId = try await container.userRecordID()
-            _ = try await privateDatabase.record(for: userRecordId)
+            
+            // Try a query that would use the recordName index
+            // This is more likely to trigger index-related errors than a direct fetch
+            let predicate = NSPredicate(format: "recordID = %@", userRecordId)
+            let query = CKQuery(recordType: "Users", predicate: predicate)
+            
+            let operation = CKQueryOperation(query: query)
+            operation.resultsLimit = 1
+            
+            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CKRecord], Error>) in
+                var records: [CKRecord] = []
+                
+                operation.recordMatchedBlock = { _, result in
+                    if case .success(let record) = result {
+                        records.append(record)
+                    }
+                }
+                
+                operation.queryResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: records)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                
+                privateDatabase.add(operation)
+            }
+            
             appLog("Users schema is ready", category: .cloudKit, level: .success)
             return true
         } catch let error as CKError {
@@ -325,7 +356,7 @@ class CloudKitService {
            errorMessage.contains("not searchable") ||
            errorMessage.contains("not sortable") ||
            errorMessage.contains("not indexed") ||
-           errorMessage.contains("field .* is not marked") {
+           (errorMessage.contains("field") && errorMessage.contains("is not marked")) {
             return true
         }
         
@@ -334,7 +365,8 @@ class CloudKitService {
             let underlyingMessage = underlyingError.localizedDescription.lowercased()
             if underlyingMessage.contains("not queryable") ||
                underlyingMessage.contains("not searchable") ||
-               underlyingMessage.contains("not indexed") {
+               underlyingMessage.contains("not indexed") ||
+               (underlyingMessage.contains("field") && underlyingMessage.contains("is not marked")) {
                 return true
             }
         }
