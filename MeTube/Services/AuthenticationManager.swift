@@ -121,8 +121,9 @@ class AuthenticationManager: NSObject, ObservableObject {
                 // Token is still valid
                 isAuthenticated = true
             } else {
-                // Token expired or unknown, but we have refresh token - try to refresh
-                // Set authenticated to true to show the app while refreshing in background.
+                // Token expired or unknown, but we have refresh token - try to refresh.
+                // Set authenticated to true to show the app immediately while refreshing in background.
+                // This avoids a jarring flash of the login screen for users with valid refresh tokens.
                 // If refresh fails, refreshTokenIfNeeded() will set isAuthenticated = false
                 // and display an error message asking the user to sign in again.
                 isAuthenticated = true
