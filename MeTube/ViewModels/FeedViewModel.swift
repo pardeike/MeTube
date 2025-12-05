@@ -46,11 +46,6 @@ enum FeedConfig {
     /// Warning threshold (80% of quota)
     static let quotaWarningThreshold = 8000
     
-    /// Filename for storing cached channels (stored in Documents directory to avoid UserDefaults size limits)
-    static let cachedChannelsFilename = "cachedChannels.json"
-    
-    /// Filename for storing cached videos (stored in Documents directory to avoid UserDefaults size limits)
-    static let cachedVideosFilename = "cachedVideos.json"
 }
 
 // MARK: - Loading State
@@ -181,81 +176,73 @@ class FeedViewModel: ObservableObject {
         ])
     }
     
-    // MARK: - Local Persistence
+    // MARK: - CloudKit Persistence
     
-    /// Returns the URL for storing cached data files in the Documents directory
-    private func cacheFileURL(filename: String) -> URL? {
-        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            appLog("Failed to get documents directory", category: .persistence, level: .error)
-            return nil
-        }
-        return documentsDirectory.appendingPathComponent(filename)
-    }
-    
-    /// Loads cached channels and videos from files in the Documents directory
-    /// This avoids the ~4MB UserDefaults size limit that was causing errors
+    /// Loads cached channels and videos from CloudKit
+    /// This syncs data across devices and avoids the ~4MB UserDefaults size limit
     private func loadCachedData() {
-        appLog("Loading cached data from files", category: .persistence, level: .debug)
-        
-        // Load cached channels
-        if let channelsURL = cacheFileURL(filename: FeedConfig.cachedChannelsFilename) {
-            do {
-                let channelsData = try Data(contentsOf: channelsURL)
-                let decoder = JSONDecoder()
-                channels = try decoder.decode([Channel].self, from: channelsData)
-                appLog("Loaded \(channels.count) cached channels", category: .persistence, level: .success)
-            } catch CocoaError.fileReadNoSuchFile, CocoaError.fileNoSuchFile {
-                appLog("No cached channels file found", category: .persistence, level: .info)
-            } catch {
-                appLog("Failed to decode cached channels: \(error)", category: .persistence, level: .error)
-            }
-        }
-        
-        // Load cached videos
-        if let videosURL = cacheFileURL(filename: FeedConfig.cachedVideosFilename) {
-            do {
-                let videosData = try Data(contentsOf: videosURL)
-                let decoder = JSONDecoder()
-                allVideos = try decoder.decode([Video].self, from: videosData)
-                appLog("Loaded \(allVideos.count) cached videos", category: .persistence, level: .success)
-            } catch CocoaError.fileReadNoSuchFile, CocoaError.fileNoSuchFile {
-                appLog("No cached videos file found", category: .persistence, level: .info)
-            } catch {
-                appLog("Failed to decode cached videos: \(error)", category: .persistence, level: .error)
-            }
+        // CloudKit operations are async, so we need to start a Task
+        // This provides initial data while the app loads
+        Task {
+            await loadCachedDataFromCloudKit()
         }
     }
     
-    /// Saves channels and videos to files in the Documents directory for persistence
-    /// This avoids the ~4MB UserDefaults size limit that was causing errors
+    /// Async method to load cached data from CloudKit
+    private func loadCachedDataFromCloudKit() async {
+        appLog("Loading cached data from CloudKit", category: .cloudKit, level: .debug)
+        
+        do {
+            // Load cached channels from CloudKit
+            let cachedChannels = try await cloudKitService.fetchAllChannels()
+            if !cachedChannels.isEmpty {
+                channels = cachedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
+                appLog("Loaded \(channels.count) cached channels from CloudKit", category: .cloudKit, level: .success)
+            } else {
+                appLog("No cached channels found in CloudKit", category: .cloudKit, level: .info)
+            }
+            
+            // Load cached videos from CloudKit
+            let cachedVideos = try await cloudKitService.fetchAllVideos()
+            if !cachedVideos.isEmpty {
+                allVideos = cachedVideos
+                appLog("Loaded \(allVideos.count) cached videos from CloudKit", category: .cloudKit, level: .success)
+            } else {
+                appLog("No cached videos found in CloudKit", category: .cloudKit, level: .info)
+            }
+        } catch {
+            appLog("Failed to load cached data from CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+    }
+    
+    /// Saves channels and videos to CloudKit for persistence and cross-device sync
     private func saveCachedData() {
-        appLog("Saving data to cache files", category: .persistence, level: .debug, context: [
+        Task {
+            await saveCachedDataToCloudKit()
+        }
+    }
+    
+    /// Async method to save cached data to CloudKit
+    private func saveCachedDataToCloudKit() async {
+        appLog("Saving data to CloudKit", category: .cloudKit, level: .debug, context: [
             "channels": channels.count,
             "videos": allVideos.count
         ])
         
-        let encoder = JSONEncoder()
-        
-        // Save channels
-        if let channelsURL = cacheFileURL(filename: FeedConfig.cachedChannelsFilename) {
-            do {
-                let channelsData = try encoder.encode(channels)
-                try channelsData.write(to: channelsURL, options: .atomic)
-                appLog("Saved \(channels.count) channels to cache", category: .persistence, level: .success)
-            } catch {
-                appLog("Failed to save cached channels: \(error)", category: .persistence, level: .error)
+        do {
+            // Save channels to CloudKit
+            if !channels.isEmpty {
+                try await cloudKitService.batchSaveChannels(channels)
+                appLog("Saved \(channels.count) channels to CloudKit", category: .cloudKit, level: .success)
             }
-        }
-        
-        // Save videos
-        if let videosURL = cacheFileURL(filename: FeedConfig.cachedVideosFilename) {
-            do {
-                let videosData = try encoder.encode(allVideos)
-                try videosData.write(to: videosURL, options: .atomic)
-                appLog("Saved \(allVideos.count) videos to cache", category: .persistence, level: .success)
-            } catch {
-                appLog("Failed to save cached videos: \(error)", category: .persistence, level: .error)
+            
+            // Save videos to CloudKit
+            if !allVideos.isEmpty {
+                try await cloudKitService.batchSaveVideos(allVideos)
+                appLog("Saved \(allVideos.count) videos to CloudKit", category: .cloudKit, level: .success)
             }
+        } catch {
+            appLog("Failed to save cached data to CloudKit: \(error)", category: .cloudKit, level: .error)
         }
     }
     

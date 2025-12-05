@@ -195,6 +195,64 @@ class CloudKitService {
         }
     }
     
+    /// Fetches all videos (full records) from CloudKit
+    func fetchAllVideos() async throws -> [Video] {
+        appLog("Fetching all videos from CloudKit", category: .cloudKit, level: .info)
+        
+        let query = CKQuery(recordType: Video.recordType, predicate: NSPredicate(value: true))
+        
+        do {
+            let records = try await performQuery(query)
+            let videos = records.compactMap { Video(from: $0) }
+            appLog("Fetched \(videos.count) videos from CloudKit", category: .cloudKit, level: .success)
+            return videos
+        } catch let ckError as CKError {
+            // Handle "unknown item" error (record type doesn't exist yet)
+            if ckError.code == .unknownItem {
+                appLog("Video record type doesn't exist yet - returning empty array", category: .cloudKit, level: .info)
+                return []
+            }
+            appLog("CloudKit error fetching videos: \(ckError)", category: .cloudKit, level: .error)
+            throw CloudKitError.networkError(ckError)
+        } catch {
+            appLog("Error fetching videos: \(error)", category: .cloudKit, level: .error)
+            throw CloudKitError.networkError(error)
+        }
+    }
+    
+    /// Saves multiple videos to CloudKit in batches
+    func batchSaveVideos(_ videos: [Video]) async throws {
+        guard !videos.isEmpty else { return }
+        
+        appLog("Batch saving \(videos.count) videos to CloudKit", category: .cloudKit, level: .info)
+        
+        // CloudKit has limits on batch operations, process in batches of 400
+        let batchSize = 400
+        for batchStart in stride(from: 0, to: videos.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, videos.count)
+            let batch = Array(videos[batchStart..<batchEnd])
+            let records = batch.map { $0.toRecord() }
+            
+            let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
+            operation.savePolicy = .changedKeys
+            
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                operation.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume()
+                    case .failure(let error):
+                        continuation.resume(throwing: CloudKitError.unknownError(error))
+                    }
+                }
+                
+                privateDatabase.add(operation)
+            }
+        }
+        
+        appLog("Successfully saved \(videos.count) videos to CloudKit", category: .cloudKit, level: .success)
+    }
+    
     // MARK: - Channel Operations
     
     /// Saves a channel to CloudKit
@@ -208,21 +266,61 @@ class CloudKitService {
         }
     }
     
+    /// Saves multiple channels to CloudKit in batches
+    func batchSaveChannels(_ channels: [Channel]) async throws {
+        guard !channels.isEmpty else { return }
+        
+        appLog("Batch saving \(channels.count) channels to CloudKit", category: .cloudKit, level: .info)
+        
+        // CloudKit has limits on batch operations, process in batches of 400
+        let batchSize = 400
+        for batchStart in stride(from: 0, to: channels.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, channels.count)
+            let batch = Array(channels[batchStart..<batchEnd])
+            let records = batch.map { $0.toRecord() }
+            
+            let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
+            operation.savePolicy = .changedKeys
+            
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                operation.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume()
+                    case .failure(let error):
+                        continuation.resume(throwing: CloudKitError.unknownError(error))
+                    }
+                }
+                
+                privateDatabase.add(operation)
+            }
+        }
+        
+        appLog("Successfully saved \(channels.count) channels to CloudKit", category: .cloudKit, level: .success)
+    }
+    
     /// Fetches all channels from CloudKit
     func fetchAllChannels() async throws -> [Channel] {
+        appLog("Fetching all channels from CloudKit", category: .cloudKit, level: .info)
+        
         let query = CKQuery(recordType: Channel.recordType, predicate: NSPredicate(value: true))
         
         do {
             let records = try await performQuery(query)
-            return records.compactMap { Channel(from: $0) }
+            let channels = records.compactMap { Channel(from: $0) }
+            appLog("Fetched \(channels.count) channels from CloudKit", category: .cloudKit, level: .success)
+            return channels
         } catch let ckError as CKError {
             // Handle "unknown item" error (record type doesn't exist yet)
             // This is expected on fresh installs before any channels are saved
             if ckError.code == .unknownItem {
+                appLog("Channel record type doesn't exist yet - returning empty array", category: .cloudKit, level: .info)
                 return []
             }
+            appLog("CloudKit error fetching channels: \(ckError)", category: .cloudKit, level: .error)
             throw CloudKitError.networkError(ckError)
         } catch {
+            appLog("Error fetching channels: \(error)", category: .cloudKit, level: .error)
             throw CloudKitError.networkError(error)
         }
     }
