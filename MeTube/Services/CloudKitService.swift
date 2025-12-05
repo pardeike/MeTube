@@ -325,6 +325,57 @@ class CloudKitService {
         }
     }
     
+    // MARK: - App Settings Operations
+    
+    /// Fetches app settings from CloudKit
+    func fetchAppSettings() async throws -> AppSettings? {
+        appLog("Fetching app settings from CloudKit", category: .cloudKit, level: .info)
+        
+        do {
+            let record = try await privateDatabase.record(for: AppSettings.recordId)
+            let settings = AppSettings(from: record)
+            appLog("Fetched app settings from CloudKit", category: .cloudKit, level: .success)
+            return settings
+        } catch let ckError as CKError {
+            // Handle "unknown item" error (record doesn't exist yet)
+            if ckError.code == .unknownItem {
+                appLog("App settings record doesn't exist yet - returning nil", category: .cloudKit, level: .info)
+                return nil
+            }
+            appLog("CloudKit error fetching app settings: \(ckError)", category: .cloudKit, level: .error)
+            throw CloudKitError.networkError(ckError)
+        } catch {
+            appLog("Error fetching app settings: \(error)", category: .cloudKit, level: .error)
+            throw CloudKitError.networkError(error)
+        }
+    }
+    
+    /// Saves app settings to CloudKit
+    func saveAppSettings(_ settings: AppSettings) async throws {
+        appLog("Saving app settings to CloudKit", category: .cloudKit, level: .info)
+        
+        let record = settings.toRecord()
+        
+        // Use CKModifyRecordsOperation with savePolicy to handle both insert and update
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            operation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: CloudKitError.unknownError(error))
+                }
+            }
+            
+            privateDatabase.add(operation)
+        }
+        
+        appLog("Successfully saved app settings to CloudKit", category: .cloudKit, level: .success)
+    }
+    
     // MARK: - Private Helper Methods
     
     private func performQuery(_ query: CKQuery) async throws -> [CKRecord] {

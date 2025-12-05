@@ -25,20 +25,8 @@ enum FeedConfig {
     /// Minimum interval between background refreshes (in seconds)
     static let backgroundRefreshInterval: TimeInterval = 15 * 60 // 15 minutes
     
-    /// Key for storing last refresh date
-    static let lastRefreshDateKey = "com.metube.lastRefreshDate"
-    
-    /// Key for storing last full refresh date
-    static let lastFullRefreshDateKey = "com.metube.lastFullRefreshDate"
-    
     /// Interval for forcing a full refresh (24 hours)
     static let fullRefreshInterval: TimeInterval = 24 * 60 * 60
-    
-    /// Key for storing API quota usage
-    static let quotaUsageKey = "com.metube.quotaUsage"
-    
-    /// Key for storing quota reset date
-    static let quotaResetDateKey = "com.metube.quotaResetDate"
     
     /// Daily quota limit (YouTube default is 10,000)
     static let dailyQuotaLimit = 10000
@@ -162,6 +150,9 @@ class FeedViewModel: ObservableObject {
     private var videoStatusCache: [String: VideoStatus] = [:]
     private var existingVideoIds: Set<String> = []
     
+    /// Cached app settings loaded from CloudKit
+    private var appSettings: AppSettings = .default
+    
     // MARK: - Task Management
     
     /// Task for loading cached data from CloudKit
@@ -173,19 +164,14 @@ class FeedViewModel: ObservableObject {
     
     init() {
         appLog("FeedViewModel initializing", category: .feed, level: .info)
-        loadQuotaInfo()
-        loadLastRefreshDate()
+        // Load all data from CloudKit asynchronously
         loadCachedData()
-        appLog("FeedViewModel initialized", category: .feed, level: .success, context: [
-            "cachedChannels": channels.count,
-            "cachedVideos": allVideos.count,
-            "lastRefresh": lastRefreshDate?.description ?? "never"
-        ])
+        appLog("FeedViewModel initialized - loading data from CloudKit", category: .feed, level: .success)
     }
     
     // MARK: - CloudKit Persistence
     
-    /// Loads cached channels and videos from CloudKit
+    /// Loads cached channels, videos, and app settings from CloudKit
     /// This syncs data across devices and avoids the ~4MB UserDefaults size limit
     private func loadCachedData() {
         // Cancel any existing load task
@@ -203,6 +189,23 @@ class FeedViewModel: ObservableObject {
         appLog("Loading cached data from CloudKit", category: .cloudKit, level: .debug)
         
         do {
+            // Load app settings from CloudKit first
+            if let settings = try await cloudKitService.fetchAppSettings() {
+                appSettings = settings
+                lastRefreshDate = settings.lastRefreshDate
+                quotaInfo = QuotaInfo(
+                    usedToday: settings.quotaUsedToday,
+                    resetDate: settings.quotaResetDate ?? Date()
+                )
+                
+                // Check if quota should be reset (new day in Pacific Time)
+                if let resetDate = settings.quotaResetDate, shouldResetQuota(lastResetDate: resetDate) {
+                    quotaInfo = QuotaInfo(usedToday: 0, resetDate: nextQuotaResetDate())
+                }
+                
+                appLog("Loaded app settings from CloudKit", category: .cloudKit, level: .success)
+            }
+            
             // Load cached channels from CloudKit
             let cachedChannels = try await cloudKitService.fetchAllChannels()
             if !cachedChannels.isEmpty {
@@ -244,6 +247,13 @@ class FeedViewModel: ObservableObject {
         ])
         
         do {
+            // Save app settings to CloudKit
+            appSettings.lastRefreshDate = lastRefreshDate
+            appSettings.quotaUsedToday = quotaInfo.usedToday
+            appSettings.quotaResetDate = quotaInfo.resetDate
+            try await cloudKitService.saveAppSettings(appSettings)
+            appLog("Saved app settings to CloudKit", category: .cloudKit, level: .success)
+            
             // Save channels to CloudKit
             if !channels.isEmpty {
                 try await cloudKitService.batchSaveChannels(channels)
@@ -372,9 +382,8 @@ class FeedViewModel: ObservableObject {
             
             // Save refresh timestamp and cached data
             lastRefreshDate = Date()
-            saveLastRefreshDate()
+            appSettings.lastFullRefreshDate = Date()
             saveCachedData()
-            UserDefaults.standard.set(Date(), forKey: FeedConfig.lastFullRefreshDateKey)
             
             appLog("Full refresh completed", category: .feed, level: .success, context: [
                 "totalVideos": allVideos.count,
@@ -490,7 +499,6 @@ class FeedViewModel: ObservableObject {
             
             // Save refresh timestamp and cached data
             lastRefreshDate = Date()
-            saveLastRefreshDate()
             saveCachedData()
             
             appLog("Incremental refresh completed", category: .feed, level: .success, context: [
@@ -611,27 +619,9 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Quota Management
     
-    private func loadQuotaInfo() {
-        let usedToday = UserDefaults.standard.integer(forKey: FeedConfig.quotaUsageKey)
-        let resetDate = UserDefaults.standard.object(forKey: FeedConfig.quotaResetDateKey) as? Date ?? Date()
-        
-        // Check if quota should be reset (new day in Pacific Time)
-        if shouldResetQuota(lastResetDate: resetDate) {
-            quotaInfo = QuotaInfo(usedToday: 0, resetDate: nextQuotaResetDate())
-            saveQuotaInfo()
-        } else {
-            quotaInfo = QuotaInfo(usedToday: usedToday, resetDate: resetDate)
-        }
-    }
-    
     private func addQuotaUsage(_ units: Int) {
         quotaInfo.usedToday += units
-        saveQuotaInfo()
-    }
-    
-    private func saveQuotaInfo() {
-        UserDefaults.standard.set(quotaInfo.usedToday, forKey: FeedConfig.quotaUsageKey)
-        UserDefaults.standard.set(quotaInfo.resetDate, forKey: FeedConfig.quotaResetDateKey)
+        // Quota changes will be saved when saveCachedData is called
     }
     
     private func shouldResetQuota(lastResetDate: Date) -> Bool {
@@ -657,16 +647,8 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Refresh Timing
     
-    private func loadLastRefreshDate() {
-        lastRefreshDate = UserDefaults.standard.object(forKey: FeedConfig.lastRefreshDateKey) as? Date
-    }
-    
-    private func saveLastRefreshDate() {
-        UserDefaults.standard.set(lastRefreshDate, forKey: FeedConfig.lastRefreshDateKey)
-    }
-    
     private func shouldDoFullRefresh() -> Bool {
-        guard let lastFullRefresh = UserDefaults.standard.object(forKey: FeedConfig.lastFullRefreshDateKey) as? Date else {
+        guard let lastFullRefresh = appSettings.lastFullRefreshDate else {
             return true
         }
         return Date().timeIntervalSince(lastFullRefresh) > FeedConfig.fullRefreshInterval
@@ -679,7 +661,6 @@ class FeedViewModel: ObservableObject {
         case .quotaExceeded:
             // Mark quota as exceeded
             quotaInfo.usedToday = FeedConfig.dailyQuotaLimit
-            saveQuotaInfo()
             error = "YouTube API quota exceeded. The quota resets at midnight Pacific Time. Your existing videos are still available."
         case .unauthorized:
             error = "Authentication expired. Please sign in again."
@@ -754,7 +735,7 @@ class FeedViewModel: ObservableObject {
         newVideosCount += newCount
         loadingState = .idle
         lastRefreshDate = Date()
-        saveLastRefreshDate()
+        saveCachedData()
 
         return newCount > 0
     }
