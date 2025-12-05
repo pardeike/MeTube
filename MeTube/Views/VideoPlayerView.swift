@@ -48,7 +48,9 @@ struct VideoPlayerView: View {
     @State private var controlsTimer: Timer?
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
-    @State private var streamExtractor = YouTubeStreamExtractor()
+    
+    /// Shared stream extractor instance
+    private let streamExtractor = YouTubeStreamExtractor.shared
     
     init(video: Video, onDismiss: @escaping () -> Void, onMarkWatched: @escaping () -> Void, nextVideo: Video? = nil, onNextVideo: ((Video) -> Void)? = nil) {
         self.video = video
