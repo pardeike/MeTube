@@ -201,11 +201,12 @@ class FeedViewModel: ObservableObject {
     }
     
     /// Async method to load cached data from CloudKit
+    /// Each data type is loaded independently to support partial database setups
     private func loadCachedDataFromCloudKit() async {
         appLog("Loading cached data from CloudKit", category: .cloudKit, level: .debug)
         
+        // Load app settings from CloudKit first (fetched by ID, not queried)
         do {
-            // Load app settings from CloudKit first
             if let settings = try await cloudKitService.fetchAppSettings() {
                 appSettings = settings
                 lastRefreshDate = settings.lastRefreshDate
@@ -221,8 +222,12 @@ class FeedViewModel: ObservableObject {
                 
                 appLog("Loaded app settings from CloudKit", category: .cloudKit, level: .success)
             }
-            
-            // Load cached channels from CloudKit
+        } catch {
+            appLog("Failed to load app settings from CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+        
+        // Load cached channels from CloudKit (requires 'name' index)
+        do {
             let cachedChannels = try await cloudKitService.fetchAllChannels()
             if !cachedChannels.isEmpty {
                 channels = cachedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
@@ -230,8 +235,12 @@ class FeedViewModel: ObservableObject {
             } else {
                 appLog("No cached channels found in CloudKit", category: .cloudKit, level: .info)
             }
-            
-            // Load cached videos from CloudKit
+        } catch {
+            appLog("Failed to load cached channels from CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+        
+        // Load cached videos from CloudKit (requires 'status' index)
+        do {
             let cachedVideos = try await cloudKitService.fetchAllVideos()
             if !cachedVideos.isEmpty {
                 allVideos = cachedVideos
@@ -240,7 +249,7 @@ class FeedViewModel: ObservableObject {
                 appLog("No cached videos found in CloudKit", category: .cloudKit, level: .info)
             }
         } catch {
-            appLog("Failed to load cached data from CloudKit: \(error)", category: .cloudKit, level: .error)
+            appLog("Failed to load cached videos from CloudKit: \(error)", category: .cloudKit, level: .error)
         }
     }
     
@@ -256,33 +265,42 @@ class FeedViewModel: ObservableObject {
     }
     
     /// Async method to save cached data to CloudKit
+    /// Each data type is saved independently to support partial database setups
     private func saveCachedDataToCloudKit() async {
         appLog("Saving data to CloudKit", category: .cloudKit, level: .debug, context: [
             "channels": channels.count,
             "videos": allVideos.count
         ])
         
+        // Save app settings to CloudKit (saved by ID, doesn't require indexes)
         do {
-            // Save app settings to CloudKit
             appSettings.lastRefreshDate = lastRefreshDate
             appSettings.quotaUsedToday = quotaInfo.usedToday
             appSettings.quotaResetDate = quotaInfo.resetDate
             try await cloudKitService.saveAppSettings(appSettings)
             appLog("Saved app settings to CloudKit", category: .cloudKit, level: .success)
-            
-            // Save channels to CloudKit
-            if !channels.isEmpty {
+        } catch {
+            appLog("Failed to save app settings to CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+        
+        // Save channels to CloudKit
+        if !channels.isEmpty {
+            do {
                 try await cloudKitService.batchSaveChannels(channels)
                 appLog("Saved \(channels.count) channels to CloudKit", category: .cloudKit, level: .success)
+            } catch {
+                appLog("Failed to save channels to CloudKit: \(error)", category: .cloudKit, level: .error)
             }
-            
-            // Save videos to CloudKit
-            if !allVideos.isEmpty {
+        }
+        
+        // Save videos to CloudKit
+        if !allVideos.isEmpty {
+            do {
                 try await cloudKitService.batchSaveVideos(allVideos)
                 appLog("Saved \(allVideos.count) videos to CloudKit", category: .cloudKit, level: .success)
+            } catch {
+                appLog("Failed to save videos to CloudKit: \(error)", category: .cloudKit, level: .error)
             }
-        } catch {
-            appLog("Failed to save cached data to CloudKit: \(error)", category: .cloudKit, level: .error)
         }
     }
     
