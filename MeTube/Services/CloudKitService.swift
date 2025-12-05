@@ -153,7 +153,7 @@ class CloudKitService {
                 }
             } catch {
                 // Continue with partial results if some records fail
-                print("Error fetching batch: \(error)")
+                appLog("Error fetching batch: \(error)", category: .cloudKit, level: .warning)
             }
         }
         
