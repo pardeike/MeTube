@@ -13,6 +13,9 @@ This guide walks you through setting up all the necessary backend services and c
 7. [CloudKit Setup](#cloudkit-setup)
 8. [Running the App](#running-the-app)
 9. [Troubleshooting](#troubleshooting)
+10. [Content Fetching & Refresh Behavior](#content-fetching--refresh-behavior)
+11. [API Quota Management](#api-quota-management)
+12. [Background Refresh Configuration](#background-refresh-configuration)
 
 ---
 
@@ -467,6 +470,152 @@ After the initial setup, the app will:
 | Required API | YouTube Data API v3 |
 | OAuth Scope | `https://www.googleapis.com/auth/youtube.readonly` |
 | iOS Target | 17.0+ |
+| Background Task ID | `com.metube.app.refresh` |
+| Daily Quota Limit | 10,000 units |
+
+---
+
+## Content Fetching & Refresh Behavior
+
+MeTube uses a sophisticated fetching system designed to handle hundreds of subscriptions efficiently while never missing new content.
+
+### Refresh Types
+
+#### Full Refresh
+- Triggered on first launch or when you request it via the menu
+- Fetches all subscriptions (paginated, 50 at a time)
+- Gets uploads playlist ID for each channel
+- Fetches up to 20 recent videos per channel
+- Automatically filters out YouTube Shorts (< 60 seconds)
+- Performed automatically once every 24 hours
+
+#### Incremental Refresh
+- Default refresh when pulling down or re-opening the app
+- Only fetches 5 recent videos per channel (much faster)
+- Merges new videos with existing ones (no duplicates)
+- Much more quota-efficient
+
+#### Background Refresh
+- Runs periodically when app is in background (every 15 minutes if system allows)
+- Fetches only 3 recent videos per channel to minimize quota usage
+- Updates new video count badge
+- iOS controls actual execution timing based on battery, network, and usage patterns
+
+### Visual Loading Indicators
+
+The app shows detailed progress during loading:
+
+1. **"Fetching Subscriptions..."** - Getting your channel list
+2. **"Loading Videos (X/Y): Channel Name"** - Progress through channels with a progress bar
+3. **"Syncing Status..."** - Loading your watch history from iCloud
+4. **"Checking for Updates..."** - During incremental refresh
+
+When refreshing with existing data, a subtle overlay shows the current operation without blocking the interface.
+
+### Ensuring No Missed Content
+
+The app uses several strategies to ensure you don't miss new videos:
+
+1. **Incremental merging**: New videos are merged with existing ones, never replacing
+2. **Full refresh daily**: Automatically performs a complete refresh every 24 hours
+3. **Background updates**: Checks for new content even when the app isn't open
+4. **New video counter**: Shows how many new videos were found since last check
+
+---
+
+## API Quota Management
+
+### Understanding YouTube API Quota
+
+YouTube Data API has a daily quota of **10,000 units** (resets at midnight Pacific Time).
+
+#### Quota Costs
+
+| Operation | Cost | MeTube Usage |
+|-----------|------|--------------|
+| subscriptions.list | 1 unit per request | ~1-5 units (paginated for many subscriptions) |
+| channels.list | 1 unit per request | ~1-5 units (batched by 50) |
+| playlistItems.list | 1 unit per request | 1 unit per channel |
+| videos.list | 1 unit per request | ~1-3 units per channel (batched by 50) |
+
+#### Typical Usage Examples
+
+| Scenario | Subscriptions | Full Refresh | Incremental | Daily Usage |
+|----------|---------------|--------------|-------------|-------------|
+| Light user | 50 channels | ~150 units | ~75 units | ~300 units |
+| Medium user | 150 channels | ~450 units | ~225 units | ~900 units |
+| Heavy user | 500 channels | ~1,500 units | ~750 units | ~3,000 units |
+
+### Quota Tracking in App
+
+The app tracks your quota usage:
+
+1. Tap the **menu** (filter icon) in the Feed view
+2. Select **"API Quota"** to see:
+   - Units used today
+   - Remaining quota
+   - Progress bar visualization
+   - When quota resets
+
+### Quota Warning Levels
+
+- **Normal** (< 80%): Green/Blue indicator
+- **Warning** (80-99%): Orange indicator - consider waiting until tomorrow
+- **Exceeded** (100%): Red indicator - must wait for reset
+
+### What Happens When Quota is Exceeded
+
+1. The app stops making API calls
+2. Your existing videos remain viewable
+3. Watch status still syncs via CloudKit
+4. Full functionality resumes after midnight PT
+
+### Tips for Managing Quota
+
+1. **Use incremental refresh** - Pull to refresh uses less quota than full refresh
+2. **Avoid excessive refreshing** - Videos update at most every few minutes
+3. **Background refresh is efficient** - Uses minimal quota automatically
+4. **Request quota increase** - If you have many subscriptions, request more quota from Google Cloud Console
+
+### Requesting a Quota Increase
+
+If you have hundreds of subscriptions and need more quota:
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Navigate to **APIs & Services** > **YouTube Data API v3**
+3. Click **Quotas**
+4. Click **Edit Quotas** (pencil icon)
+5. Fill in the request form explaining personal use
+6. Submit and wait for approval (usually 24-48 hours)
+
+---
+
+## Background Refresh Configuration
+
+The app supports iOS background refresh to keep content updated.
+
+### How It Works
+
+1. When you close the app, it schedules a background refresh task
+2. iOS decides when to actually run the task based on:
+   - Device battery level
+   - Network conditions
+   - Your usage patterns
+   - System resources
+3. The app fetches minimal data (3 videos per channel)
+4. New video count is updated for when you return
+
+### Enabling Background Refresh
+
+1. Go to **Settings** > **General** > **Background App Refresh**
+2. Make sure **Background App Refresh** is ON
+3. Scroll to find **MeTube** and ensure it's enabled
+
+### Limitations
+
+- iOS controls when background tasks run (not guaranteed every 15 minutes)
+- Background refresh uses minimal quota to avoid exhausting your daily limit
+- On low battery, iOS may skip background refreshes
 
 ---
 
