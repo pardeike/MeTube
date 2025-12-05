@@ -114,15 +114,22 @@ class AuthenticationManager: NSObject, ObservableObject {
     /// Checks if user is authenticated and token is valid
     @MainActor
     func checkAuthenticationStatus() {
-        if let expiration = tokenExpiration {
-            if expiration > Date() {
+        // First check if we have a refresh token - if so, we can get a new access token
+        if retrieveRefreshToken() != nil {
+            // We have a refresh token, so we're authenticated (can refresh when needed)
+            if let expiration = tokenExpiration, expiration > Date() {
+                // Token is still valid
                 isAuthenticated = true
             } else {
-                // Token expired, try to refresh
+                // Token expired or unknown, but we have refresh token - try to refresh
+                isAuthenticated = true  // Assume authenticated, refresh will update if needed
                 Task { @MainActor in
                     await refreshTokenIfNeeded()
                 }
             }
+        } else if let expiration = tokenExpiration, expiration > Date() {
+            // We have a valid token expiration but no refresh token (shouldn't happen normally)
+            isAuthenticated = retrieveToken() != nil
         } else {
             isAuthenticated = false
         }
@@ -295,9 +302,8 @@ class AuthenticationManager: NSObject, ObservableObject {
     // MARK: - Token Storage (Keychain)
     
     @MainActor private func loadStoredToken() {
-        if retrieveToken() != nil {
-            checkAuthenticationStatus()
-        }
+        // Check authentication status - this handles both access tokens and refresh tokens
+        checkAuthenticationStatus()
     }
     
     private func saveToken(accessToken: String, refreshToken: String?, expiresIn: Int) {

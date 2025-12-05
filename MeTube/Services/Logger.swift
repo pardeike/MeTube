@@ -79,10 +79,7 @@ final class AppLogger {
         
         let logMessage = "[\(timestamp)] [\(category.rawValue)] \(level.rawValue): \(message)\(location)"
         
-        // Print to console
-        print(logMessage)
-        
-        // Also log to system log
+        // Log to system log (unified logging) - this also outputs to Console and Xcode
         let osLogType: OSLogType
         switch level {
         case .debug: osLogType = .debug
