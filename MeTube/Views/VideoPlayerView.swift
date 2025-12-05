@@ -58,7 +58,7 @@ struct VideoPlayerView: View {
         self.onMarkWatched = onMarkWatched
         self.nextVideo = nextVideo
         self.onNextVideo = onNextVideo
-        appLog("VideoPlayerView initialized", category: .player, level: .info, context: [
+        appLog("VideoPlayerView init called", category: .player, level: .info, context: [
             "videoId": video.id,
             "title": video.title,
             "duration": video.duration
@@ -66,6 +66,7 @@ struct VideoPlayerView: View {
     }
     
     var body: some View {
+        let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: ["videoId": video.id])
         GeometryReader { geometry in
             ZStack {
                 // Background
@@ -194,12 +195,12 @@ struct VideoPlayerView: View {
                 resetControlsTimer()
             }
             .onAppear {
-                appLog("VideoPlayerView appeared", category: .player, level: .info)
+                appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: ["videoId": video.id])
                 resetControlsTimer()
                 loadVideo()
             }
             .onDisappear {
-                appLog("VideoPlayerView disappeared", category: .player, level: .info)
+                appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info)
                 controlsTimer?.invalidate()
                 cleanupPlayer()
             }
@@ -253,9 +254,12 @@ struct VideoPlayerView: View {
     
     /// Load the video by extracting the stream URL
     private func loadVideo() {
+        appLog("loadVideo() called for video: \(video.id)", category: .player, level: .info)
         loadingState = .extracting
+        appLog("Loading state set to: extracting", category: .player, level: .debug)
         
         Task { @MainActor in
+            appLog("Task started for stream extraction", category: .player, level: .debug)
             do {
                 appLog("Starting stream extraction for video: \(video.id)", category: .player, level: .info)
                 let streamURL = try await streamExtractor.extractStreamURL(videoId: video.id)
@@ -263,10 +267,13 @@ struct VideoPlayerView: View {
                 appLog("Stream URL extracted successfully", category: .player, level: .success, context: ["url": streamURL.absoluteString])
                 
                 loadingState = .loading
+                appLog("Loading state set to: loading", category: .player, level: .debug)
                 
                 // Create player with the extracted URL
+                appLog("Creating AVPlayerItem with URL", category: .player, level: .debug)
                 let playerItem = AVPlayerItem(url: streamURL)
                 let newPlayer = AVPlayer(playerItem: playerItem)
+                appLog("AVPlayer created", category: .player, level: .debug)
                 
                 // Configure for AirPlay
                 newPlayer.allowsExternalPlayback = true
@@ -277,19 +284,24 @@ struct VideoPlayerView: View {
                 do {
                     try audioSession.setCategory(.playback, mode: .moviePlayback)
                     try audioSession.setActive(true)
+                    appLog("Audio session configured successfully", category: .player, level: .debug)
                 } catch {
                     appLog("Failed to configure audio session: \(error)", category: .player, level: .warning)
                 }
                 
                 self.player = newPlayer
                 loadingState = .ready
+                appLog("Loading state set to: ready", category: .player, level: .debug)
                 
                 // Auto-play
                 newPlayer.play()
                 appLog("Video playback started", category: .player, level: .success)
                 
             } catch {
-                appLog("Failed to load video: \(error)", category: .player, level: .error)
+                appLog("Failed to load video: \(error)", category: .player, level: .error, context: [
+                    "videoId": video.id,
+                    "errorDescription": error.localizedDescription
+                ])
                 loadingState = .failed(error.localizedDescription)
             }
         }
