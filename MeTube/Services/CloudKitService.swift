@@ -206,8 +206,9 @@ class CloudKitService {
         appLog("Checking Channel schema", category: .cloudKit, level: .debug)
         
         // Try a query that uses the 'name' field index
-        // CloudKit doesn't support 'field != nil' predicates, so we use 'name >= ""' instead
-        // which effectively matches all records with a non-null name field
+        // CloudKit doesn't support 'field != nil' predicates, so we use 'name >= ""' instead.
+        // This matches all records where name is a non-null string (including empty strings),
+        // which is equivalent to 'name != nil' for our use case since all channels have names.
         let predicate = NSPredicate(format: "name >= %@", "")
         let query = CKQuery(recordType: Channel.recordType, predicate: predicate)
         
@@ -611,8 +612,9 @@ class CloudKitService {
         
         // Use a predicate that queries on a field that's marked as queryable in CloudKit schema
         // NSPredicate(value: true) can fail if recordName isn't indexed
-        // CloudKit doesn't support 'field != nil' predicates, so we use 'name >= ""' instead
-        // which effectively matches all records with a non-null name field
+        // CloudKit doesn't support 'field != nil' predicates, so we use 'name >= ""' instead.
+        // This matches all records where name is a non-null string (including empty strings),
+        // which is equivalent to 'name != nil' for our use case since all channels have names.
         let predicate = NSPredicate(format: "name >= %@", "")
         let query = CKQuery(recordType: Channel.recordType, predicate: predicate)
         
