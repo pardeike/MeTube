@@ -93,15 +93,21 @@ final class YouTubeStreamExtractor {
         }
         
         // Try the innertube API method first (more reliable)
-        if let url = try? await extractViaInnertubeAPI(videoId: videoId) {
+        do {
+            let url = try await extractViaInnertubeAPI(videoId: videoId)
             appLog("Successfully extracted stream via Innertube API", category: .player, level: .success)
             return url
+        } catch {
+            appLog("Innertube API extraction failed: \(error)", category: .player, level: .warning)
         }
         
         // Fallback to video info endpoint
-        if let url = try? await extractViaVideoInfo(videoId: videoId) {
+        do {
+            let url = try await extractViaVideoInfo(videoId: videoId)
             appLog("Successfully extracted stream via video info", category: .player, level: .success)
             return url
+        } catch {
+            appLog("Video info extraction failed: \(error)", category: .player, level: .warning)
         }
         
         throw StreamExtractionError.extractionFailed
