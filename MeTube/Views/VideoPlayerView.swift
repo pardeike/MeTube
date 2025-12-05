@@ -2,34 +2,32 @@
 //  VideoPlayerView.swift
 //  MeTube
 //
-//  Video player view with YouTube embedding and AirPlay support
+//  Video player view using native AVPlayer with AirPlay support
+//  Note: Uses direct stream URL extraction for better reliability
 //
 
 import SwiftUI
-import WebKit
 import AVKit
 
-// MARK: - YouTube Embed Configuration
+// MARK: - Player State
 
-/// Configuration for YouTube embed player
-enum YouTubeEmbedConfig {
-    /// Base URL for YouTube embed
-    static let baseURL = "https://www.youtube.com/embed/"
+/// Tracks the state of video loading and playback
+enum PlayerLoadingState: Equatable {
+    case idle
+    case extracting
+    case loading
+    case ready
+    case failed(String)
     
-    /// YouTube embed parameters for distraction-free playback
-    /// - autoplay: Start playing immediately
-    /// - playsinline: Play inline on iOS instead of fullscreen
-    /// - modestbranding: Reduce YouTube branding
-    /// - rel: Don't show related videos at end
-    /// - fs: Allow fullscreen
-    /// - controls: Show player controls
-    static let embedParameters = "autoplay=1&playsinline=1&modestbranding=1&rel=0&fs=1&controls=1"
-    
-    /// Build the full embed URL for a video ID
-    static func embedURL(for videoId: String) -> String {
-        let url = "\(baseURL)\(videoId)?\(embedParameters)"
-        appLog("Building embed URL for video: \(videoId)", category: .player, level: .debug, context: ["url": url])
-        return url
+    static func == (lhs: PlayerLoadingState, rhs: PlayerLoadingState) -> Bool {
+        switch (lhs, rhs) {
+        case (.idle, .idle), (.extracting, .extracting), (.loading, .loading), (.ready, .ready):
+            return true
+        case (.failed(let l), .failed(let r)):
+            return l == r
+        default:
+            return false
+        }
     }
 }
 
@@ -48,8 +46,9 @@ struct VideoPlayerView: View {
     
     @State private var showingControls = true
     @State private var controlsTimer: Timer?
-    @State private var currentVideoId: String
-    @State private var webViewLoaded = false
+    @State private var loadingState: PlayerLoadingState = .idle
+    @State private var player: AVPlayer?
+    @State private var streamExtractor = YouTubeStreamExtractor()
     
     init(video: Video, onDismiss: @escaping () -> Void, onMarkWatched: @escaping () -> Void, nextVideo: Video? = nil, onNextVideo: ((Video) -> Void)? = nil) {
         self.video = video
@@ -57,7 +56,6 @@ struct VideoPlayerView: View {
         self.onMarkWatched = onMarkWatched
         self.nextVideo = nextVideo
         self.onNextVideo = onNextVideo
-        self._currentVideoId = State(initialValue: video.id)
         appLog("VideoPlayerView initialized", category: .player, level: .info, context: [
             "videoId": video.id,
             "title": video.title,
@@ -71,26 +69,15 @@ struct VideoPlayerView: View {
                 // Background
                 Color.black.edgesIgnoringSafeArea(.all)
                 
-                // YouTube Player
-                YouTubePlayerView(videoId: currentVideoId, onLoaded: {
-                    appLog("YouTube player loaded for video: \(currentVideoId)", category: .player, level: .success)
-                    webViewLoaded = true
-                }, onError: { errorMessage in
-                    appLog("YouTube player error: \(errorMessage)", category: .player, level: .error)
-                })
-                .edgesIgnoringSafeArea(.all)
-                .id(currentVideoId) // Force recreate when video changes
+                // Native Video Player
+                if let player = player {
+                    NativeVideoPlayer(player: player)
+                        .edgesIgnoringSafeArea(.all)
+                }
                 
-                // Loading indicator
-                if !webViewLoaded {
-                    VStack {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .tint(.white)
-                        Text("Loading video...")
-                            .foregroundColor(.white)
-                            .padding(.top, 8)
-                    }
+                // Loading / Error overlay
+                if loadingState != .ready {
+                    loadingOverlay
                 }
                 
                 // Overlay Controls
@@ -100,6 +87,7 @@ struct VideoPlayerView: View {
                         HStack {
                             Button(action: {
                                 appLog("Dismiss button tapped", category: .player, level: .info)
+                                cleanupPlayer()
                                 onDismiss()
                             }) {
                                 Image(systemName: "xmark")
@@ -111,6 +99,12 @@ struct VideoPlayerView: View {
                             }
                             
                             Spacer()
+                            
+                            // Share Button for AirPlay
+                            if let player = player {
+                                SharePlayButton(player: player)
+                                    .frame(width: 44, height: 44)
+                            }
                             
                             // AirPlay Button
                             AirPlayButton()
@@ -202,13 +196,106 @@ struct VideoPlayerView: View {
             .onAppear {
                 appLog("VideoPlayerView appeared", category: .player, level: .info)
                 resetControlsTimer()
+                loadVideo()
             }
             .onDisappear {
                 appLog("VideoPlayerView disappeared", category: .player, level: .info)
                 controlsTimer?.invalidate()
+                cleanupPlayer()
             }
         }
         .statusBarHidden(true)
+    }
+    
+    /// Loading overlay view
+    @ViewBuilder
+    private var loadingOverlay: some View {
+        VStack(spacing: 16) {
+            switch loadingState {
+            case .idle, .extracting:
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+                Text("Extracting video stream...")
+                    .foregroundColor(.white)
+            case .loading:
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+                Text("Loading video...")
+                    .foregroundColor(.white)
+            case .failed(let error):
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.yellow)
+                Text("Failed to load video")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Button(action: loadVideo) {
+                    Text("Retry")
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.red)
+                        .cornerRadius(8)
+                }
+                .padding(.top, 8)
+            case .ready:
+                EmptyView()
+            }
+        }
+    }
+    
+    /// Load the video by extracting the stream URL
+    private func loadVideo() {
+        loadingState = .extracting
+        
+        Task { @MainActor in
+            do {
+                appLog("Starting stream extraction for video: \(video.id)", category: .player, level: .info)
+                let streamURL = try await streamExtractor.extractStreamURL(videoId: video.id)
+                
+                appLog("Stream URL extracted successfully", category: .player, level: .success, context: ["url": streamURL.absoluteString])
+                
+                loadingState = .loading
+                
+                // Create player with the extracted URL
+                let playerItem = AVPlayerItem(url: streamURL)
+                let newPlayer = AVPlayer(playerItem: playerItem)
+                
+                // Configure for AirPlay
+                newPlayer.allowsExternalPlayback = true
+                newPlayer.usesExternalPlaybackWhileExternalScreenIsActive = true
+                
+                // Set up audio session for playback
+                try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+                try? AVAudioSession.sharedInstance().setActive(true)
+                
+                self.player = newPlayer
+                loadingState = .ready
+                
+                // Auto-play
+                newPlayer.play()
+                appLog("Video playback started", category: .player, level: .success)
+                
+            } catch {
+                appLog("Failed to load video: \(error)", category: .player, level: .error)
+                loadingState = .failed(error.localizedDescription)
+            }
+        }
+    }
+    
+    /// Clean up player resources
+    private func cleanupPlayer() {
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+        appLog("Player cleaned up", category: .player, level: .debug)
     }
     
     /// Marks the current video as watched and advances to the next video if available
@@ -217,6 +304,7 @@ struct VideoPlayerView: View {
             "currentVideo": video.id,
             "hasNextVideo": nextVideo != nil
         ])
+        cleanupPlayer()
         onMarkWatched()
         if let next = nextVideo {
             appLog("Advancing to next video: \(next.id)", category: .player, level: .info)
@@ -236,98 +324,29 @@ struct VideoPlayerView: View {
     }
 }
 
-// MARK: - YouTube Player (WKWebView)
+// MARK: - Native Video Player (AVPlayerViewController)
 
-struct YouTubePlayerView: UIViewRepresentable {
-    let videoId: String
-    var onLoaded: (() -> Void)?
-    var onError: ((String) -> Void)?
+struct NativeVideoPlayer: UIViewControllerRepresentable {
+    let player: AVPlayer
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onLoaded: onLoaded, onError: onError)
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.allowsPictureInPicturePlayback = true
+        controller.videoGravity = .resizeAspect
+        
+        // Enable AirPlay
+        controller.player?.allowsExternalPlayback = true
+        
+        appLog("AVPlayerViewController created", category: .player, level: .debug)
+        return controller
     }
     
-    func makeUIView(context: Context) -> WKWebView {
-        appLog("Creating WKWebView for video: \(videoId)", category: .player, level: .debug)
-        
-        let configuration = WKWebViewConfiguration()
-        configuration.allowsInlineMediaPlayback = true
-        configuration.mediaTypesRequiringUserActionForPlayback = []
-        
-        let webView = WKWebView(frame: .zero, configuration: configuration)
-        webView.scrollView.isScrollEnabled = false
-        webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.navigationDelegate = context.coordinator
-        
-        return webView
-    }
-    
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        // Only reload if the video ID has changed to prevent constant reloads
-        guard context.coordinator.loadedVideoId != videoId else {
-            appLog("Skipping WKWebView update - video already loaded: \(videoId)", category: .player, level: .debug)
-            return
-        }
-        
-        appLog("Updating WKWebView with videoId: \(videoId)", category: .player, level: .debug)
-        
-        // Mark the video as being loaded
-        context.coordinator.loadedVideoId = videoId
-        
-        let embedURL = YouTubeEmbedConfig.embedURL(for: videoId)
-        // Iframe permissions limited to only what's needed for video playback
-        // - autoplay: Required for auto-starting videos
-        // - encrypted-media: Required for DRM-protected content
-        // - picture-in-picture: Allows PiP playback
-        let embedHTML = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-            <style>
-                * { margin: 0; padding: 0; }
-                html, body { width: 100%; height: 100%; background-color: #000; overflow: hidden; }
-                iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
-            </style>
-        </head>
-        <body>
-            <iframe
-                src="\(embedURL)"
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowfullscreen>
-            </iframe>
-        </body>
-        </html>
-        """
-        
-        appLog("Loading HTML content for video player", category: .player, level: .debug)
-        webView.loadHTMLString(embedHTML, baseURL: URL(string: "https://www.youtube.com"))
-    }
-    
-    class Coordinator: NSObject, WKNavigationDelegate {
-        var loadedVideoId: String?
-        var onLoaded: (() -> Void)?
-        var onError: ((String) -> Void)?
-        
-        init(onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
-            self.onLoaded = onLoaded
-            self.onError = onError
-        }
-        
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            appLog("WKWebView did finish navigation", category: .player, level: .success)
-            onLoaded?()
-        }
-        
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            appLog("WKWebView navigation failed: \(error)", category: .player, level: .error)
-            onError?(error.localizedDescription)
-        }
-        
-        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            appLog("WKWebView provisional navigation failed: \(error)", category: .player, level: .error)
-            onError?(error.localizedDescription)
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        // Update player if needed
+        if uiViewController.player !== player {
+            uiViewController.player = player
         }
     }
 }
@@ -344,6 +363,45 @@ struct AirPlayButton: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+// MARK: - Share Button for AirPlay/External Playback
+
+struct SharePlayButton: View {
+    let player: AVPlayer
+    @State private var showingShareSheet = false
+    
+    var body: some View {
+        Button(action: {
+            showingShareSheet = true
+        }) {
+            Image(systemName: "square.and.arrow.up")
+                .font(.title2)
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.black.opacity(0.5))
+                .clipShape(Circle())
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let currentItem = player.currentItem,
+               let asset = currentItem.asset as? AVURLAsset {
+                ShareSheet(items: [asset.url])
+            }
+        }
+    }
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
