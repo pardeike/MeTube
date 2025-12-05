@@ -64,25 +64,41 @@ struct FeedView: View {
                             Button(action: {
                                 feedViewModel.selectedStatus = .unwatched
                             }) {
-                                Label("Unwatched", systemImage: feedViewModel.selectedStatus == .unwatched ? "checkmark" : "")
+                                if feedViewModel.selectedStatus == .unwatched {
+                                    Label("Unwatched", systemImage: "checkmark")
+                                } else {
+                                    Text("Unwatched")
+                                }
                             }
                             
                             Button(action: {
                                 feedViewModel.selectedStatus = nil
                             }) {
-                                Label("All Videos", systemImage: feedViewModel.selectedStatus == nil ? "checkmark" : "")
+                                if feedViewModel.selectedStatus == nil {
+                                    Label("All Videos", systemImage: "checkmark")
+                                } else {
+                                    Text("All Videos")
+                                }
                             }
                             
                             Button(action: {
                                 feedViewModel.selectedStatus = .watched
                             }) {
-                                Label("Watched", systemImage: feedViewModel.selectedStatus == .watched ? "checkmark" : "")
+                                if feedViewModel.selectedStatus == .watched {
+                                    Label("Watched", systemImage: "checkmark")
+                                } else {
+                                    Text("Watched")
+                                }
                             }
                             
                             Button(action: {
                                 feedViewModel.selectedStatus = .skipped
                             }) {
-                                Label("Skipped", systemImage: feedViewModel.selectedStatus == .skipped ? "checkmark" : "")
+                                if feedViewModel.selectedStatus == .skipped {
+                                    Label("Skipped", systemImage: "checkmark")
+                                } else {
+                                    Text("Skipped")
+                                }
                             }
                         }
                         

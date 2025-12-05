@@ -55,13 +55,21 @@ struct ChannelDetailView: View {
                     Button(action: {
                         showAllVideos = false
                     }) {
-                        Label("Unwatched Only", systemImage: showAllVideos ? "" : "checkmark")
+                        if !showAllVideos {
+                            Label("Unwatched Only", systemImage: "checkmark")
+                        } else {
+                            Text("Unwatched Only")
+                        }
                     }
                     
                     Button(action: {
                         showAllVideos = true
                     }) {
-                        Label("All Videos", systemImage: showAllVideos ? "checkmark" : "")
+                        if showAllVideos {
+                            Label("All Videos", systemImage: "checkmark")
+                        } else {
+                            Text("All Videos")
+                        }
                     }
                     
                     Divider()
