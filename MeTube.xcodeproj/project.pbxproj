@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0673A8962EE3044800C31341 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
 		0673A8982EE30C8400C31341 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8972EE30C8400C31341 /* AppSettings.swift */; };
+		100000018 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
 		100000001 /* MeTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000001 /* MeTubeApp.swift */; };
 		100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000002 /* ContentView.swift */; };
 		100000003 /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000003 /* Channel.swift */; };
@@ -51,6 +52,7 @@
 		200000017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000019 /* MeTube.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
+		200000020 /* YouTubeStreamExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +138,7 @@
 				200000006 /* YouTubeService.swift */,
 				200000007 /* CloudKitService.swift */,
 				200000008 /* AuthenticationManager.swift */,
+				200000020 /* YouTubeStreamExtractor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -241,6 +244,7 @@
 				100000006 /* YouTubeService.swift in Sources */,
 				100000007 /* CloudKitService.swift in Sources */,
 				100000008 /* AuthenticationManager.swift in Sources */,
+				100000018 /* YouTubeStreamExtractor.swift in Sources */,
 				0673A8962EE3044800C31341 /* Logger.swift in Sources */,
 				100000009 /* FeedViewModel.swift in Sources */,
 				100000010 /* PlayerViewModel.swift in Sources */,
