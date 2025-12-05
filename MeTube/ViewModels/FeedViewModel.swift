@@ -558,55 +558,50 @@ class FeedViewModel: ObservableObject {
         }
         
         loadingState = .backgroundRefreshing
-        
-        do {
-            // Only fetch very recent videos in background
-            var newVideos: [Video] = []
-            
-            await withTaskGroup(of: [Video].self) { group in
-                for channel in channels {
-                    group.addTask { [youtubeService] in
-                        do {
-                            return try await youtubeService.fetchChannelVideos(
-                                channel: channel,
-                                accessToken: accessToken,
-                                maxResults: 3 // Very limited in background
-                            )
-                        } catch {
-                            return []
-                        }
+
+        // Only fetch very recent videos in background
+        var newVideos: [Video] = []
+
+        await withTaskGroup(of: [Video].self) { group in
+            for channel in channels {
+                group.addTask { [youtubeService] in
+                    do {
+                        return try await youtubeService.fetchChannelVideos(
+                            channel: channel,
+                            accessToken: accessToken,
+                            maxResults: 3 // Very limited in background
+                        )
+                    } catch {
+                        return []
                     }
                 }
-                
-                for await videos in group {
-                    newVideos.append(contentsOf: videos)
-                }
             }
-            
-            // Merge new videos
-            let existingIds = Set(allVideos.map { $0.id })
-            var newCount = 0
-            
-            for var video in newVideos {
-                if let cachedStatus = videoStatusCache[video.id] {
-                    video.status = cachedStatus
-                }
-                
-                if !existingIds.contains(video.id) {
-                    allVideos.append(video)
-                    newCount += 1
-                }
+
+            for await videos in group {
+                newVideos.append(contentsOf: videos)
             }
-            
-            newVideosCount += newCount
-            loadingState = .idle
-            lastRefreshDate = Date()
-            saveLastRefreshDate()
-            
-            return newCount > 0
-        } catch {
-            loadingState = .idle
-            return false
         }
+
+        // Merge new videos
+        let existingIds = Set(allVideos.map { $0.id })
+        var newCount = 0
+
+        for var video in newVideos {
+            if let cachedStatus = videoStatusCache[video.id] {
+                video.status = cachedStatus
+            }
+
+            if !existingIds.contains(video.id) {
+                allVideos.append(video)
+                newCount += 1
+            }
+        }
+
+        newVideosCount += newCount
+        loadingState = .idle
+        lastRefreshDate = Date()
+        saveLastRefreshDate()
+
+        return newCount > 0
     }
 }
