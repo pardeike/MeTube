@@ -66,7 +66,7 @@ struct AppSettings: Codable {
         self.quotaResetDate = quotaResetDate
     }
     
-    init?(from record: CKRecord) {
+    init(from record: CKRecord) {
         self.googleClientId = record["googleClientId"] as? String
         self.tokenExpiration = record["tokenExpiration"] as? Date
         self.lastRefreshDate = record["lastRefreshDate"] as? Date

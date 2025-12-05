@@ -63,6 +63,9 @@ class AuthenticationManager: NSObject, ObservableObject {
     // Token expiration - stored in CloudKit for cross-device sync
     private var tokenExpiration: Date?
     
+    // Cached app settings to avoid redundant CloudKit fetches
+    private var cachedAppSettings: AppSettings?
+    
     private var webAuthSession: ASWebAuthenticationSession?
     private let cloudKitService = CloudKitService()
 
@@ -82,6 +85,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     private func loadSettingsFromCloudKit() async {
         do {
             if let settings = try await cloudKitService.fetchAppSettings() {
+                cachedAppSettings = settings
                 _clientId = settings.googleClientId ?? ""
                 tokenExpiration = settings.tokenExpiration
                 appLog("Loaded auth settings from CloudKit", category: .cloudKit, level: .success)
@@ -93,10 +97,12 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     private func saveSettingsToCloudKit() async {
         do {
-            var settings = (try? await cloudKitService.fetchAppSettings()) ?? .default
+            // Use cached settings to avoid redundant fetches
+            var settings = cachedAppSettings ?? .default
             settings.googleClientId = _clientId
             settings.tokenExpiration = tokenExpiration
             try await cloudKitService.saveAppSettings(settings)
+            cachedAppSettings = settings
             appLog("Saved auth settings to CloudKit", category: .cloudKit, level: .success)
         } catch {
             appLog("Failed to save auth settings to CloudKit: \(error)", category: .cloudKit, level: .error)
