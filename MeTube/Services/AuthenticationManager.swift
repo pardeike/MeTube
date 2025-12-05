@@ -58,7 +58,8 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private var webAuthSession: ASWebAuthenticationSession?
-    
+
+    @MainActor
     override init() {
         super.init()
         loadStoredToken()
@@ -242,7 +243,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // MARK: - Token Storage (Keychain)
     
-    private func loadStoredToken() {
+    @MainActor private func loadStoredToken() {
         if retrieveToken() != nil {
             checkAuthenticationStatus()
         }

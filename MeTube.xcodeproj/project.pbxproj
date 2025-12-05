@@ -76,7 +76,6 @@
 				400000004 /* ViewModels */,
 				400000005 /* Views */,
 				400000006 /* Services */,
-				400000007 /* Utilities */,
 				400000008 /* Resources */,
 				200000018 /* Info.plist */,
 				200000019 /* MeTube.entitlements */,
@@ -133,13 +132,6 @@
 				200000008 /* AuthenticationManager.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		400000007 /* Utilities */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Utilities;
 			sourceTree = "<group>";
 		};
 		400000008 /* Resources */ = {
@@ -257,24 +249,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		600000001 /* Build configuration list for PBXProject "MeTube" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				800000001 /* Debug */,
-				800000002 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		600000003 /* Build configuration list for PBXNativeTarget "MeTube" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				800000003 /* Debug */,
-				800000004 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		800000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -402,7 +376,7 @@
 				CODE_SIGN_ENTITLEMENTS = MeTube/MeTube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MeTube/Info.plist;
@@ -437,7 +411,7 @@
 				CODE_SIGN_ENTITLEMENTS = MeTube/MeTube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MeTube/Info.plist;
@@ -465,6 +439,27 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		600000001 /* Build configuration list for PBXProject "MeTube" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				800000001 /* Debug */,
+				800000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		600000003 /* Build configuration list for PBXNativeTarget "MeTube" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				800000003 /* Debug */,
+				800000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
 	};
 	rootObject = 700000001 /* Project object */;
 }
