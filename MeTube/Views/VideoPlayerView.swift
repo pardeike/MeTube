@@ -273,8 +273,12 @@ struct VideoPlayerView: View {
                 newPlayer.usesExternalPlaybackWhileExternalScreenIsActive = true
                 
                 // Set up audio session for playback
-                try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-                try? AVAudioSession.sharedInstance().setActive(true)
+                do {
+                    try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+                    try AVAudioSession.sharedInstance().setActive(true)
+                } catch {
+                    appLog("Failed to configure audio session: \(error)", category: .player, level: .warning)
+                }
                 
                 self.player = newPlayer
                 loadingState = .ready
@@ -344,10 +348,12 @@ struct NativeVideoPlayer: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
-        // Update player if needed
-        if uiViewController.player !== player {
-            uiViewController.player = player
-        }
+        // Only update player if it's actually different and valid
+        // Check both identity and current item to avoid unnecessary updates
+        guard uiViewController.player !== player else { return }
+        
+        appLog("Updating AVPlayerViewController with new player", category: .player, level: .debug)
+        uiViewController.player = player
     }
 }
 
