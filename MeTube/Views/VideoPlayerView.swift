@@ -244,7 +244,7 @@ struct YouTubePlayerView: UIViewRepresentable {
     var onError: ((String) -> Void)?
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(onLoaded: onLoaded, onError: onError)
+        Coordinator(videoId: videoId, onLoaded: onLoaded, onError: onError)
     }
     
     func makeUIView(context: Context) -> WKWebView {
@@ -264,7 +264,16 @@ struct YouTubePlayerView: UIViewRepresentable {
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
+        // Only reload if the video ID has changed to prevent constant reloads
+        guard context.coordinator.loadedVideoId != videoId else {
+            appLog("Skipping WKWebView update - video already loaded: \(videoId)", category: .player, level: .debug)
+            return
+        }
+        
         appLog("Updating WKWebView with videoId: \(videoId)", category: .player, level: .debug)
+        
+        // Mark the video as being loaded
+        context.coordinator.loadedVideoId = videoId
         
         let embedURL = YouTubeEmbedConfig.embedURL(for: videoId)
         // Iframe permissions limited to only what's needed for video playback
@@ -297,10 +306,12 @@ struct YouTubePlayerView: UIViewRepresentable {
     }
     
     class Coordinator: NSObject, WKNavigationDelegate {
+        var loadedVideoId: String?
         var onLoaded: (() -> Void)?
         var onError: ((String) -> Void)?
         
-        init(onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
+        init(videoId: String, onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
+            self.loadedVideoId = nil
             self.onLoaded = onLoaded
             self.onError = onError
         }
