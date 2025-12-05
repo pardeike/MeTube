@@ -102,11 +102,9 @@ struct VideoPlayerView: View {
                             
                             Spacer()
                             
-                            // Share Button for AirPlay
-                            if let player = player {
-                                SharePlayButton(player: player)
-                                    .frame(width: 44, height: 44)
-                            }
+                            // Share Button for YouTube URL
+                            SharePlayButton(videoId: video.id)
+                                .frame(width: 44, height: 44)
                             
                             // AirPlay Button
                             AirPlayButton()
@@ -376,8 +374,13 @@ struct AirPlayButton: UIViewRepresentable {
 // MARK: - Share Button for AirPlay/External Playback
 
 struct SharePlayButton: View {
-    let player: AVPlayer
+    let videoId: String
     @State private var showingShareSheet = false
+    
+    /// YouTube watch URL for sharing
+    private var youtubeURL: URL {
+        URL(string: "https://www.youtube.com/watch?v=\(videoId)")!
+    }
     
     var body: some View {
         Button(action: {
@@ -391,10 +394,7 @@ struct SharePlayButton: View {
                 .clipShape(Circle())
         }
         .sheet(isPresented: $showingShareSheet) {
-            if let currentItem = player.currentItem,
-               let asset = currentItem.asset as? AVURLAsset {
-                ShareSheet(items: [asset.url])
-            }
+            ShareSheet(items: [youtubeURL])
         }
     }
 }
