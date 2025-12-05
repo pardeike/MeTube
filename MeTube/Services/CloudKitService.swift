@@ -315,8 +315,8 @@ class CloudKitService {
         
         // Use a predicate that queries on a field that's marked as queryable in CloudKit schema
         // NSPredicate(value: true) can fail if recordName isn't indexed
-        // Query for records where name exists (all channels have names)
-        let predicate = NSPredicate(format: "name != %@", "")
+        // Query for records where name is not nil (all channels have names)
+        let predicate = NSPredicate(format: "name != nil")
         let query = CKQuery(recordType: Channel.recordType, predicate: predicate)
         
         do {
