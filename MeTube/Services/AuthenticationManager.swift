@@ -12,24 +12,10 @@ import Security
 // MARK: - OAuth Configuration
 
 /// OAuth configuration constants
-/// These should match the bundle identifier and URL scheme in Info.plist
+/// For Google OAuth on iOS, the redirect URI must use the reversed client ID as the URL scheme
 enum OAuthConfig {
-    /// The app's bundle identifier, used for URL scheme
-    static let bundleIdentifier = "com.metube.app"
-    
     /// OAuth callback path
     static let callbackPath = "oauth2callback"
-    
-    /// Full redirect URI for OAuth flow
-    /// Format: scheme://path (e.g., com.metube.app://oauth2callback)
-    static var redirectUri: String {
-        return "\(bundleIdentifier)://\(callbackPath)"
-    }
-    
-    /// URL scheme for authentication callbacks
-    static var urlScheme: String {
-        return bundleIdentifier
-    }
     
     /// Google OAuth token endpoint
     static let tokenURL = URL(string: "https://oauth2.googleapis.com/token")!
@@ -39,6 +25,24 @@ enum OAuthConfig {
     
     /// Required OAuth scopes for YouTube read access
     static let scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
+    
+    /// Derives the reversed client ID from the full client ID
+    /// For example: "123456789012-abcdef.apps.googleusercontent.com" becomes "com.googleusercontent.apps.123456789012-abcdef"
+    static func reversedClientId(from clientId: String) -> String {
+        let components = clientId.split(separator: ".").map(String.init)
+        return components.reversed().joined(separator: ".")
+    }
+    
+    /// Full redirect URI for OAuth flow using reversed client ID
+    /// Format: {reversed_client_id}:/oauth2callback
+    static func redirectUri(for clientId: String) -> String {
+        return "\(reversedClientId(from: clientId)):/\(callbackPath)"
+    }
+    
+    /// URL scheme for authentication callbacks (reversed client ID)
+    static func urlScheme(for clientId: String) -> String {
+        return reversedClientId(from: clientId)
+    }
 }
 
 /// Manages OAuth authentication for YouTube API
@@ -106,11 +110,12 @@ class AuthenticationManager: NSObject, ObservableObject {
         isLoading = true
         error = nil
         
-        // Build authorization URL
+        // Build authorization URL using reversed client ID for redirect URI
+        let redirectUri = OAuthConfig.redirectUri(for: clientId)
         var components = URLComponents(url: OAuthConfig.authURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "client_id", value: clientId),
-            URLQueryItem(name: "redirect_uri", value: OAuthConfig.redirectUri),
+            URLQueryItem(name: "redirect_uri", value: redirectUri),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: OAuthConfig.scopes.joined(separator: " ")),
             URLQueryItem(name: "access_type", value: "offline"),
@@ -123,8 +128,9 @@ class AuthenticationManager: NSObject, ObservableObject {
             return
         }
         
-        // Create and start authentication session
-        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: OAuthConfig.urlScheme) { [weak self] callbackURL, error in
+        // Create and start authentication session with reversed client ID as URL scheme
+        let urlScheme = OAuthConfig.urlScheme(for: clientId)
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: urlScheme) { [weak self] callbackURL, error in
             Task { @MainActor in
                 await self?.handleAuthCallback(callbackURL: callbackURL, error: error)
             }
@@ -180,7 +186,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         let body = [
             "code": code,
             "client_id": clientId,
-            "redirect_uri": OAuthConfig.redirectUri,
+            "redirect_uri": OAuthConfig.redirectUri(for: clientId),
             "grant_type": "authorization_code"
         ]
         
