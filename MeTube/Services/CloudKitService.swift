@@ -61,30 +61,28 @@ class CloudKitService {
     
     // MARK: - Video Status Operations
     
-    /// Saves or updates a video's status
+    /// Saves or updates a video's status using CKModifyRecordsOperation
+    /// This is more efficient than fetching before saving
     func saveVideoStatus(_ video: Video) async throws {
         let record = video.toRecord()
         
-        do {
-            // Try to fetch existing record first
-            if let existingRecord = try? await privateDatabase.record(for: record.recordID) {
-                // Update existing record
-                existingRecord["status"] = video.status.rawValue
-                existingRecord["title"] = video.title
-                existingRecord["channelId"] = video.channelId
-                existingRecord["channelName"] = video.channelName
-                existingRecord["publishedDate"] = video.publishedDate
-                existingRecord["duration"] = video.duration
-                existingRecord["thumbnailURL"] = video.thumbnailURL?.absoluteString
-                existingRecord["description"] = video.description
-                
-                _ = try await privateDatabase.save(existingRecord)
-            } else {
-                // Create new record
-                _ = try await privateDatabase.save(record)
+        // Use CKModifyRecordsOperation with savePolicy to handle both insert and update
+        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
+        // .changedKeys only saves modified fields, while handling conflicts
+        operation.savePolicy = .changedKeys
+        operation.isAtomic = true
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            operation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: CloudKitError.unknownError(error))
+                }
             }
-        } catch {
-            throw CloudKitError.unknownError(error)
+            
+            privateDatabase.add(operation)
         }
     }
     

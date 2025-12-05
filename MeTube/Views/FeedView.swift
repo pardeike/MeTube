@@ -12,6 +12,7 @@ struct FeedView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var selectedVideo: Video?
     @State private var showingPlayer = false
+    @State private var showingError = false
     
     var body: some View {
         NavigationView {
@@ -96,10 +97,10 @@ struct FeedView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: Binding<Bool>(
-                get: { feedViewModel.error != nil },
-                set: { if !$0 { feedViewModel.clearError() } }
-            )) {
+            .onChange(of: feedViewModel.error) { _, newError in
+                showingError = newError != nil
+            }
+            .alert("Error", isPresented: $showingError) {
                 Button("OK") {
                     feedViewModel.clearError()
                 }

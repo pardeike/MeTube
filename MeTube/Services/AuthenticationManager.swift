@@ -21,8 +21,9 @@ enum OAuthConfig {
     static let callbackPath = "oauth2callback"
     
     /// Full redirect URI for OAuth flow
+    /// Format: scheme://path (e.g., com.metube.app://oauth2callback)
     static var redirectUri: String {
-        return "\(bundleIdentifier):/\(callbackPath)"
+        return "\(bundleIdentifier)://\(callbackPath)"
     }
     
     /// URL scheme for authentication callbacks
