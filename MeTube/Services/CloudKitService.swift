@@ -96,7 +96,12 @@ class CloudKitService {
         appLog("Fetching all video statuses from CloudKit", category: .cloudKit, level: .info)
         var statuses: [String: VideoStatus] = [:]
         
-        let query = CKQuery(recordType: Video.recordType, predicate: NSPredicate(value: true))
+        // Use a predicate that queries on a field that's marked as queryable in CloudKit schema
+        // NSPredicate(value: true) can fail if recordName isn't indexed
+        // Query for all valid status values instead
+        let allStatuses = VideoStatus.allCases.map { $0.rawValue }
+        let predicate = NSPredicate(format: "status IN %@", allStatuses)
+        let query = CKQuery(recordType: Video.recordType, predicate: predicate)
         
         do {
             let records = try await performQuery(query)
@@ -199,7 +204,12 @@ class CloudKitService {
     func fetchAllVideos() async throws -> [Video] {
         appLog("Fetching all videos from CloudKit", category: .cloudKit, level: .info)
         
-        let query = CKQuery(recordType: Video.recordType, predicate: NSPredicate(value: true))
+        // Use a predicate that queries on a field that's marked as queryable in CloudKit schema
+        // NSPredicate(value: true) can fail if recordName isn't indexed
+        // Query for all valid status values instead
+        let allStatuses = VideoStatus.allCases.map { $0.rawValue }
+        let predicate = NSPredicate(format: "status IN %@", allStatuses)
+        let query = CKQuery(recordType: Video.recordType, predicate: predicate)
         
         do {
             let records = try await performQuery(query)
@@ -303,7 +313,11 @@ class CloudKitService {
     func fetchAllChannels() async throws -> [Channel] {
         appLog("Fetching all channels from CloudKit", category: .cloudKit, level: .info)
         
-        let query = CKQuery(recordType: Channel.recordType, predicate: NSPredicate(value: true))
+        // Use a predicate that queries on a field that's marked as queryable in CloudKit schema
+        // NSPredicate(value: true) can fail if recordName isn't indexed
+        // Query for records where name exists (all channels have names)
+        let predicate = NSPredicate(format: "name != %@", "")
+        let query = CKQuery(recordType: Channel.recordType, predicate: predicate)
         
         do {
             let records = try await performQuery(query)
