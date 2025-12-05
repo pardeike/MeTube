@@ -6,18 +6,12 @@
 //
 
 import SwiftUI
-import BackgroundTasks
 
 @main
 struct MeTubeApp: App {
     @StateObject private var authManager = AuthenticationManager()
     @StateObject private var feedViewModel = FeedViewModel()
     @Environment(\.scenePhase) private var scenePhase
-    
-    init() {
-        // Register background refresh task at app launch
-        registerBackgroundTasks()
-    }
     
     var body: some Scene {
         WindowGroup {
@@ -41,35 +35,6 @@ struct MeTubeApp: App {
         }
         .backgroundTask(.appRefresh(FeedConfig.backgroundTaskIdentifier)) {
             await handleBackgroundRefresh()
-        }
-    }
-    
-    private func registerBackgroundTasks() {
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: FeedConfig.backgroundTaskIdentifier,
-            using: nil
-        ) { task in
-            guard let refreshTask = task as? BGAppRefreshTask else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-            
-            // Handle expiration
-            refreshTask.expirationHandler = {
-                refreshTask.setTaskCompleted(success: false)
-            }
-            
-            Task {
-                if let token = await authManager.getAccessToken() {
-                    let success = await feedViewModel.performBackgroundRefresh(accessToken: token)
-                    refreshTask.setTaskCompleted(success: success)
-                } else {
-                    refreshTask.setTaskCompleted(success: false)
-                }
-                
-                // Schedule next refresh
-                feedViewModel.scheduleBackgroundRefresh()
-            }
         }
     }
     
