@@ -74,7 +74,8 @@ final class YouTubeStreamExtractor {
     /// Shared instance for reuse across video player views
     static let shared = YouTubeStreamExtractor()
     
-    /// YouTube iOS client version - may need periodic updates
+    /// YouTube iOS client version - may need periodic updates when YouTube changes their API.
+    /// Check https://www.apkmirror.com/apk/google-inc/youtube/ for latest versions.
     private let clientVersion = "19.29.1"
     
     init() {
@@ -174,13 +175,11 @@ final class YouTubeStreamExtractor {
         return identifier.isEmpty ? "iPhone" : identifier
     }
     
-    /// Calculate a signature timestamp (approximate days since YouTube epoch)
+    /// Calculate a signature timestamp (days since Unix epoch)
     private func calculateSignatureTimestamp() -> String {
-        // YouTube signature timestamps are roughly days since a base date
-        // Using a reasonable base value that should work for most videos
-        let baseTimestamp = 19500
-        let daysSinceBase = Int(Date().timeIntervalSince1970 / 86400) - 19500
-        return String(baseTimestamp + max(0, daysSinceBase))
+        // YouTube uses approximate days since Unix epoch for signature timestamps
+        let daysSinceEpoch = Int(Date().timeIntervalSince1970 / 86400)
+        return String(daysSinceEpoch)
     }
     
     /// Extract stream URL using the video info endpoint (fallback)
