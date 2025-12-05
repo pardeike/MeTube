@@ -57,10 +57,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.metube.app</string>
+			<string>Google OAuth Callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.metube.app</string>
+				<string>com.googleusercontent.apps.YOUR_CLIENT_ID</string>
 			</array>
 		</dict>
 	</array>

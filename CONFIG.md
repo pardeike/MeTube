@@ -190,9 +190,48 @@ Since your app is in "Testing" mode, you need to add yourself as a test user.
 
 8. **Copy the Client ID** and save it somewhere safe. You'll need it when configuring the app.
 
-9. Click **OK** to close the popup
+9. **Important**: Note the **reversed Client ID** which will be used as your URL scheme:
+   ```
+   com.googleusercontent.apps.123456789012-abcdefghijklmnopqrstuvwxyz123456
+   ```
+   This is your Client ID with the components reversed (separated by dots).
 
-### Step 5: Download Credentials (Optional)
+10. Click **OK** to close the popup
+
+### Step 5: Configure URL Scheme in Xcode
+
+After creating your OAuth Client ID, you must add the reversed Client ID as a URL scheme in your Xcode project:
+
+1. Open `MeTube.xcodeproj` in Xcode
+
+2. Select the **MeTube** target
+
+3. Go to the **Info** tab
+
+4. Expand **URL Types**
+
+5. Update the existing URL scheme or add a new one:
+   - **Identifier**: `Google OAuth Callback`
+   - **URL Schemes**: Your reversed Client ID (e.g., `com.googleusercontent.apps.123456789012-abcdefghijklmnopqrstuvwxyz123456`)
+
+   Alternatively, edit **Info.plist** directly:
+   ```xml
+   <key>CFBundleURLTypes</key>
+   <array>
+       <dict>
+           <key>CFBundleTypeRole</key>
+           <string>Editor</string>
+           <key>CFBundleURLName</key>
+           <string>Google OAuth Callback</string>
+           <key>CFBundleURLSchemes</key>
+           <array>
+               <string>com.googleusercontent.apps.YOUR_CLIENT_ID_PREFIX</string>
+           </array>
+       </dict>
+   </array>
+   ```
+
+### Step 6: Download Credentials (Optional)
 
 1. In the Credentials list, find your new OAuth client
 
@@ -285,13 +324,14 @@ If you changed the Bundle Identifier for signing:
 
 3. Update these files to match:
 
-   **Info.plist** - Update the URL scheme:
+   **Info.plist** - The URL scheme should be your **reversed Google Client ID** (not the bundle identifier):
    ```xml
    <key>CFBundleURLSchemes</key>
    <array>
-       <string>your.new.bundle.id</string>
+       <string>com.googleusercontent.apps.YOUR_CLIENT_ID_PREFIX</string>
    </array>
    ```
+   > **Note**: The URL scheme for Google OAuth must be the reversed Client ID, not the bundle identifier.
 
    **MeTube.entitlements** - Update the CloudKit container:
    ```xml
@@ -393,14 +433,17 @@ After the initial setup, the app will:
 
 **Solution**: Tap "Configure OAuth" on the login screen and enter your Client ID.
 
-### "Error 400: redirect_uri_mismatch"
+### "Error 400: invalid_request" or "redirect_uri_mismatch"
 
-**Cause**: The Bundle ID in your OAuth client doesn't match the app.
+**Cause**: The URL scheme in Info.plist doesn't match the reversed Client ID, or the reversed Client ID format is incorrect.
 
 **Solution**: 
-1. Go to Google Cloud Console > **Credentials**
-2. Edit your OAuth client
-3. Verify the Bundle ID matches your Xcode project exactly
+1. Verify your **reversed Client ID** is correctly set as the URL scheme in Info.plist
+2. The URL scheme should be your Client ID with components reversed, e.g.:
+   - Client ID: `123456789012-abc.apps.googleusercontent.com`
+   - Reversed (URL Scheme): `com.googleusercontent.apps.123456789012-abc`
+3. In Xcode, go to your target > **Info** > **URL Types** and update the URL Schemes
+4. Ensure the Bundle ID in Google Cloud Console matches your Xcode project
 
 ### "Access blocked: This app's request is invalid"
 
@@ -465,7 +508,8 @@ After the initial setup, the app will:
 | Setting | Value |
 |---------|-------|
 | Bundle ID | `com.metube.app` |
-| OAuth Redirect URI | `com.metube.app://oauth2callback` |
+| OAuth Redirect URI | `{reversed_client_id}:/oauth2callback` |
+| URL Scheme | Your reversed Client ID (e.g., `com.googleusercontent.apps.123456...`) |
 | CloudKit Container | `iCloud.com.metube.app` |
 | Required API | YouTube Data API v3 |
 | OAuth Scope | `https://www.googleapis.com/auth/youtube.readonly` |
