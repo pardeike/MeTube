@@ -538,19 +538,8 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Background Refresh
     
-    /// Registers the background refresh task
-    static func registerBackgroundTask() {
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: FeedConfig.backgroundTaskIdentifier,
-            using: nil
-        ) { task in
-            // This will be handled by the app delegate or scene delegate
-            task.setTaskCompleted(success: true)
-        }
-    }
-    
     /// Schedules a background refresh
-    func scheduleBackgroundRefresh() {
+    nonisolated func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: FeedConfig.backgroundTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: FeedConfig.backgroundRefreshInterval)
         

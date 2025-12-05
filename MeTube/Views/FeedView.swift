@@ -145,20 +145,35 @@ struct FeedView: View {
             }
             .fullScreenCover(isPresented: $showingPlayer) {
                 if let video = selectedVideo {
-                    VideoPlayerView(video: video, onDismiss: {
-                        showingPlayer = false
-                    }, onMarkWatched: {
-                        Task {
-                            await feedViewModel.markAsWatched(video)
+                    let nextVideo = getNextVideo(after: video)
+                    VideoPlayerView(
+                        video: video,
+                        onDismiss: {
+                            showingPlayer = false
+                        },
+                        onMarkWatched: {
+                            Task {
+                                await feedViewModel.markAsWatched(video)
+                            }
+                        },
+                        nextVideo: nextVideo,
+                        onNextVideo: { next in
+                            selectedVideo = next
                         }
-                    })
+                    )
                 }
             }
         }
-        .onAppear {
-            // Schedule background refresh when app comes to foreground
-            feedViewModel.scheduleBackgroundRefresh()
+    }
+    
+    /// Gets the next unwatched video after the current one
+    private func getNextVideo(after video: Video) -> Video? {
+        let videos = feedViewModel.filteredVideos
+        guard let currentIndex = videos.firstIndex(where: { $0.id == video.id }) else {
+            return videos.first
         }
+        let nextIndex = currentIndex + 1
+        return nextIndex < videos.count ? videos[nextIndex] : nil
     }
     
     private var quotaIcon: String {

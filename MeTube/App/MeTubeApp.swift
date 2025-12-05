@@ -12,10 +12,11 @@ import BackgroundTasks
 struct MeTubeApp: App {
     @StateObject private var authManager = AuthenticationManager()
     @StateObject private var feedViewModel = FeedViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
-        // Register background refresh task
-        FeedViewModel.registerBackgroundTask()
+        // Register background refresh task at app launch
+        registerBackgroundTasks()
     }
     
     var body: some Scene {
@@ -23,14 +24,52 @@ struct MeTubeApp: App {
             ContentView()
                 .environmentObject(authManager)
                 .environmentObject(feedViewModel)
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-                    // Schedule background refresh when app enters background
-                    feedViewModel.scheduleBackgroundRefresh()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .background:
+                // Schedule background refresh when app enters background
+                feedViewModel.scheduleBackgroundRefresh()
+            case .active:
+                // Check if we need to refresh when app becomes active
+                Task {
+                    await feedViewModel.loadVideoStatuses()
                 }
+            default:
+                break
+            }
         }
         .backgroundTask(.appRefresh(FeedConfig.backgroundTaskIdentifier)) {
-            // Handle background refresh
             await handleBackgroundRefresh()
+        }
+    }
+    
+    private func registerBackgroundTasks() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: FeedConfig.backgroundTaskIdentifier,
+            using: nil
+        ) { task in
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            
+            // Handle expiration
+            refreshTask.expirationHandler = {
+                refreshTask.setTaskCompleted(success: false)
+            }
+            
+            Task {
+                if let token = await authManager.getAccessToken() {
+                    let success = await feedViewModel.performBackgroundRefresh(accessToken: token)
+                    refreshTask.setTaskCompleted(success: success)
+                } else {
+                    refreshTask.setTaskCompleted(success: false)
+                }
+                
+                // Schedule next refresh
+                feedViewModel.scheduleBackgroundRefresh()
+            }
         }
     }
     

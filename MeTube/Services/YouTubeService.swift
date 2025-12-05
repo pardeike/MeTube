@@ -37,7 +37,8 @@ enum YouTubeAPIError: LocalizedError {
 }
 
 /// Service for interacting with YouTube Data API v3
-class YouTubeService {
+/// This class is thread-safe as it only uses immutable properties and URLSession (which is thread-safe)
+final class YouTubeService: Sendable {
     private let baseURL = "https://www.googleapis.com/youtube/v3"
     private let session: URLSession
     

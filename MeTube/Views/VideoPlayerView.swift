@@ -35,9 +35,21 @@ struct VideoPlayerView: View {
     let video: Video
     let onDismiss: () -> Void
     let onMarkWatched: () -> Void
+    var nextVideo: Video? = nil
+    var onNextVideo: ((Video) -> Void)? = nil
     
     @State private var showingControls = true
-    @State private var isFullscreen = false
+    @State private var controlsTimer: Timer?
+    @State private var currentVideoId: String
+    
+    init(video: Video, onDismiss: @escaping () -> Void, onMarkWatched: @escaping () -> Void, nextVideo: Video? = nil, onNextVideo: ((Video) -> Void)? = nil) {
+        self.video = video
+        self.onDismiss = onDismiss
+        self.onMarkWatched = onMarkWatched
+        self.nextVideo = nextVideo
+        self.onNextVideo = onNextVideo
+        self._currentVideoId = State(initialValue: video.id)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -46,8 +58,9 @@ struct VideoPlayerView: View {
                 Color.black.edgesIgnoringSafeArea(.all)
                 
                 // YouTube Player
-                YouTubePlayerView(videoId: video.id)
+                YouTubePlayerView(videoId: currentVideoId)
                     .edgesIgnoringSafeArea(.all)
+                    .id(currentVideoId) // Force recreate when video changes
                 
                 // Overlay Controls
                 VStack {
@@ -69,7 +82,13 @@ struct VideoPlayerView: View {
                             AirPlayButton()
                                 .frame(width: 44, height: 44)
                             
-                            Button(action: onMarkWatched) {
+                            Button(action: {
+                                onMarkWatched()
+                                // Auto-advance to next video if available
+                                if let next = nextVideo {
+                                    onNextVideo?(next)
+                                }
+                            }) {
                                 Image(systemName: "checkmark.circle")
                                     .font(.title2)
                                     .foregroundColor(.white)
@@ -106,6 +125,28 @@ struct VideoPlayerView: View {
                                 Text(video.durationString)
                                 Text("•")
                                 Text(video.relativePublishDate)
+                                
+                                Spacer()
+                                
+                                // Next Video Button
+                                if let next = nextVideo {
+                                    Button(action: {
+                                        onMarkWatched()
+                                        onNextVideo?(next)
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Text("Next")
+                                            Image(systemName: "forward.fill")
+                                        }
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.red)
+                                        .cornerRadius(16)
+                                    }
+                                }
                             }
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.6))
@@ -126,9 +167,27 @@ struct VideoPlayerView: View {
                 withAnimation {
                     showingControls.toggle()
                 }
+                resetControlsTimer()
+            }
+            .onAppear {
+                resetControlsTimer()
+            }
+            .onDisappear {
+                controlsTimer?.invalidate()
             }
         }
         .statusBarHidden(true)
+    }
+    
+    private func resetControlsTimer() {
+        controlsTimer?.invalidate()
+        if showingControls {
+            controlsTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { _ in
+                withAnimation {
+                    showingControls = false
+                }
+            }
+        }
     }
 }
 
@@ -207,6 +266,15 @@ struct AirPlayButton: UIViewRepresentable {
             thumbnailURL: nil
         ),
         onDismiss: {},
-        onMarkWatched: {}
+        onMarkWatched: {},
+        nextVideo: Video(
+            id: "next123",
+            title: "Next Video",
+            channelId: "channel1",
+            channelName: "Sample Channel",
+            publishedDate: Date(),
+            duration: 300,
+            thumbnailURL: nil
+        )
     )
 }

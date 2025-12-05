@@ -67,13 +67,14 @@ class AuthenticationManager: NSObject, ObservableObject {
     // MARK: - Public Methods
     
     /// Checks if user is authenticated and token is valid
+    @MainActor
     func checkAuthenticationStatus() {
         if let expiration = UserDefaults.standard.object(forKey: expirationKey) as? Date {
             if expiration > Date() {
                 isAuthenticated = true
             } else {
                 // Token expired, try to refresh
-                Task {
+                Task { @MainActor in
                     await refreshTokenIfNeeded()
                 }
             }
