@@ -311,7 +311,6 @@ struct YouTubePlayerView: UIViewRepresentable {
         var onError: ((String) -> Void)?
         
         init(onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
-            self.loadedVideoId = nil
             self.onLoaded = onLoaded
             self.onError = onError
         }
