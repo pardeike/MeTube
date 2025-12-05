@@ -122,7 +122,10 @@ class AuthenticationManager: NSObject, ObservableObject {
                 isAuthenticated = true
             } else {
                 // Token expired or unknown, but we have refresh token - try to refresh
-                isAuthenticated = true  // Assume authenticated, refresh will update if needed
+                // Set authenticated to true to show the app while refreshing in background.
+                // If refresh fails, refreshTokenIfNeeded() will set isAuthenticated = false
+                // and display an error message asking the user to sign in again.
+                isAuthenticated = true
                 Task { @MainActor in
                     await refreshTokenIfNeeded()
                 }
