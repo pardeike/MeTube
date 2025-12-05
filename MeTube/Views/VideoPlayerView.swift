@@ -31,6 +31,12 @@ enum YouTubeEmbedConfig {
     }
 }
 
+/// Configuration for video player UI
+private enum VideoPlayerConfig {
+    /// Duration in seconds before controls auto-hide
+    static let controlsAutoHideDelay: TimeInterval = 4.0
+}
+
 struct VideoPlayerView: View {
     let video: Video
     let onDismiss: () -> Void
@@ -82,13 +88,7 @@ struct VideoPlayerView: View {
                             AirPlayButton()
                                 .frame(width: 44, height: 44)
                             
-                            Button(action: {
-                                onMarkWatched()
-                                // Auto-advance to next video if available
-                                if let next = nextVideo {
-                                    onNextVideo?(next)
-                                }
-                            }) {
+                            Button(action: markWatchedAndAdvance) {
                                 Image(systemName: "checkmark.circle")
                                     .font(.title2)
                                     .foregroundColor(.white)
@@ -129,11 +129,8 @@ struct VideoPlayerView: View {
                                 Spacer()
                                 
                                 // Next Video Button
-                                if let next = nextVideo {
-                                    Button(action: {
-                                        onMarkWatched()
-                                        onNextVideo?(next)
-                                    }) {
+                                if nextVideo != nil {
+                                    Button(action: markWatchedAndAdvance) {
                                         HStack(spacing: 4) {
                                             Text("Next")
                                             Image(systemName: "forward.fill")
@@ -179,10 +176,18 @@ struct VideoPlayerView: View {
         .statusBarHidden(true)
     }
     
+    /// Marks the current video as watched and advances to the next video if available
+    private func markWatchedAndAdvance() {
+        onMarkWatched()
+        if let next = nextVideo {
+            onNextVideo?(next)
+        }
+    }
+    
     private func resetControlsTimer() {
         controlsTimer?.invalidate()
         if showingControls {
-            controlsTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { _ in
+            controlsTimer = Timer.scheduledTimer(withTimeInterval: VideoPlayerConfig.controlsAutoHideDelay, repeats: false) { _ in
                 withAnimation {
                     showingControls = false
                 }
