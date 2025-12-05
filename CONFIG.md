@@ -381,7 +381,57 @@ The app automatically creates the necessary record types when you first save dat
    - `description` (String)
    - `uploadsPlaylistId` (String)
 
-### Step 3: Deploy Schema to Production (Optional)
+5. Create a record type called **AppSettings** with these fields:
+   - `googleClientId` (String)
+   - `tokenExpiration` (Date/Time)
+   - `lastRefreshDate` (Date/Time)
+   - `lastFullRefreshDate` (Date/Time)
+   - `quotaUsedToday` (Int64)
+   - `quotaResetDate` (Date/Time)
+
+### Step 3: Configure Field Indexes (Required)
+
+> **Important**: This step is required for queries to work. Without proper indexes, you'll see errors like "Field '...' is not marked queryable".
+
+After creating the record types, you must configure indexes for queryable fields:
+
+1. In CloudKit Dashboard, go to **Schema** > **Indexes**
+
+2. **For the Video record type**, add these indexes:
+   | Field Name | Index Type |
+   |------------|------------|
+   | `status` | Queryable |
+   | `recordName` | Queryable |
+
+3. **For the Channel record type**, add these indexes:
+   | Field Name | Index Type |
+   |------------|------------|
+   | `name` | Queryable |
+   | `recordName` | Queryable |
+
+4. **For the Users record type** (CloudKit built-in type), add this index:
+   | Field Name | Index Type |
+   |------------|------------|
+   | `recordName` | Queryable |
+
+5. Click **Save Changes** after adding each index
+
+> **Note**: The `recordName` is a system field that CloudKit uses as the primary identifier for records. Making it queryable allows the app to efficiently look up records by ID.
+
+### Step 4: Verify Schema Setup
+
+After configuring indexes, verify the setup:
+
+1. In CloudKit Dashboard, go to **Schema** > **Record Types**
+
+2. For each record type (Video, Channel, AppSettings, Users):
+   - Click on the record type
+   - Verify all fields are listed
+   - Click on **Indexes** tab and verify the indexes are configured
+
+3. Run the app - if schema preparation fails, check the Xcode console for specific error messages
+
+### Step 5: Deploy Schema to Production (Optional)
 
 If you want to use CloudKit in production:
 
@@ -468,6 +518,51 @@ After the initial setup, the app will:
 1. On your device, go to **Settings** > **Apple ID** > **iCloud**
 2. Make sure iCloud is enabled
 3. In Xcode, verify the CloudKit container matches your entitlements
+
+### "Field '...' is not marked queryable" or "recordName is not queryable"
+
+**Cause**: CloudKit field indexes are not configured. This is required for the app to query records.
+
+**Solution**:
+1. Go to [CloudKit Dashboard](https://icloud.developer.apple.com/)
+2. Select your container (`iCloud.com.metube.app`)
+3. Go to **Schema** > **Indexes**
+4. Add the following indexes:
+
+   **For Video record type:**
+   - `status` → Queryable
+   - `recordName` → Queryable
+
+   **For Channel record type:**
+   - `name` → Queryable
+   - `recordName` → Queryable
+
+   **For Users record type:**
+   - `recordName` → Queryable
+
+5. Click **Save Changes**
+6. Restart the app
+
+### "Users is not marked indexable"
+
+**Cause**: The built-in CloudKit `Users` record type needs its `recordName` field to be indexed.
+
+**Solution**:
+1. In CloudKit Dashboard, go to **Schema** > **Record Types**
+2. Select the **Users** record type (this is a built-in CloudKit type)
+3. Go to the **Indexes** tab
+4. Add an index for `recordName` with type **Queryable**
+5. Save changes
+
+### CloudKit schema issues on fresh database
+
+**Cause**: When creating a new CloudKit database from scratch, record types and indexes need to be configured.
+
+**Solution**:
+1. The app will attempt to create record types automatically when first saving data
+2. However, **indexes must be configured manually** in CloudKit Dashboard
+3. Follow the complete [CloudKit Setup](#cloudkit-setup) section above
+4. Pay special attention to [Step 3: Configure Field Indexes](#step-3-configure-field-indexes-required)
 
 ### "Quota exceeded for quota metric"
 

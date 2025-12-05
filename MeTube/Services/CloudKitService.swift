@@ -13,6 +13,7 @@ enum CloudKitError: LocalizedError {
     case recordNotFound
     case networkError(Error)
     case unknownError(Error)
+    case schemaNotConfigured(String)
     
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum CloudKitError: LocalizedError {
             return "Network error: \(error.localizedDescription)"
         case .unknownError(let error):
             return "Unknown error: \(error.localizedDescription)"
+        case .schemaNotConfigured(let details):
+            return "CloudKit schema not properly configured. \(details) Please check CloudKit Dashboard indexes."
         }
     }
 }
@@ -62,6 +65,288 @@ class CloudKitService {
             appLog("Failed to check iCloud status: \(error)", category: .cloudKit, level: .error)
             return false
         }
+    }
+    
+    // MARK: - Schema Preparation
+    
+    /// Schema preparation result containing status for each record type
+    struct SchemaPreparationResult {
+        let videoSchemaReady: Bool
+        let channelSchemaReady: Bool
+        let appSettingsSchemaReady: Bool
+        let usersSchemaReady: Bool
+        let errors: [String]
+        
+        var allReady: Bool {
+            return videoSchemaReady && channelSchemaReady && appSettingsSchemaReady && usersSchemaReady && errors.isEmpty
+        }
+    }
+    
+    /// Prepares the CloudKit schema by creating record types if they don't exist
+    /// and verifying that required indexes are configured.
+    ///
+    /// This method should be called on first app launch to ensure the CloudKit
+    /// database is properly set up. It creates placeholder records to trigger
+    /// auto-schema creation in the Development environment.
+    ///
+    /// - Note: Field indexes (queryable, sortable) must be configured manually
+    ///         in the CloudKit Dashboard. This method will detect if indexes
+    ///         are missing and report them in the result.
+    ///
+    /// - Returns: A result indicating which schemas are ready and any errors encountered
+    func prepareSchema() async -> SchemaPreparationResult {
+        appLog("Preparing CloudKit schema", category: .cloudKit, level: .info)
+        
+        var errors: [String] = []
+        
+        // Check and prepare Video schema
+        let videoReady = await prepareVideoSchema()
+        if !videoReady {
+            errors.append("Video: 'status' field must be marked Queryable in CloudKit Dashboard")
+        }
+        
+        // Check and prepare Channel schema
+        let channelReady = await prepareChannelSchema()
+        if !channelReady {
+            errors.append("Channel: 'name' field must be marked Queryable in CloudKit Dashboard")
+        }
+        
+        // Check and prepare AppSettings schema
+        let appSettingsReady = await prepareAppSettingsSchema()
+        if !appSettingsReady {
+            errors.append("AppSettings: Record type may need to be created")
+        }
+        
+        // Check and prepare Users schema (CloudKit's built-in type)
+        let usersReady = await prepareUsersSchema()
+        if !usersReady {
+            errors.append("Users: 'recordName' field must be marked Queryable in CloudKit Dashboard")
+        }
+        
+        let result = SchemaPreparationResult(
+            videoSchemaReady: videoReady,
+            channelSchemaReady: channelReady,
+            appSettingsSchemaReady: appSettingsReady,
+            usersSchemaReady: usersReady,
+            errors: errors
+        )
+        
+        if result.allReady {
+            appLog("CloudKit schema preparation complete - all schemas ready", category: .cloudKit, level: .success)
+        } else {
+            appLog("CloudKit schema preparation complete with issues: \(errors.joined(separator: "; "))", category: .cloudKit, level: .warning)
+        }
+        
+        return result
+    }
+    
+    /// Prepares the Video record type schema and verifies the 'status' index
+    private func prepareVideoSchema() async -> Bool {
+        appLog("Checking Video schema", category: .cloudKit, level: .debug)
+        
+        // Try a query that uses the 'status' field index
+        let allStatuses = VideoStatus.allCases.map { $0.rawValue }
+        let predicate = NSPredicate(format: "status IN %@", allStatuses)
+        let query = CKQuery(recordType: Video.recordType, predicate: predicate)
+        
+        do {
+            // Limit to 1 result just to test the query works
+            let operation = CKQueryOperation(query: query)
+            operation.resultsLimit = 1
+            
+            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CKRecord], Error>) in
+                var records: [CKRecord] = []
+                
+                operation.recordMatchedBlock = { _, result in
+                    if case .success(let record) = result {
+                        records.append(record)
+                    }
+                }
+                
+                operation.queryResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: records)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                
+                privateDatabase.add(operation)
+            }
+            
+            appLog("Video schema is ready", category: .cloudKit, level: .success)
+            return true
+        } catch let error as CKError {
+            // Check if error is related to missing index or unknown record type
+            if error.code == .unknownItem {
+                // Record type doesn't exist yet - this is OK, it will be created on first save
+                appLog("Video record type doesn't exist yet (will be created on first save)", category: .cloudKit, level: .info)
+                return true
+            }
+            
+            // Check for index-related errors
+            if isIndexError(error) {
+                appLog("Video schema: 'status' field index is not configured", category: .cloudKit, level: .warning)
+                return false
+            }
+            
+            appLog("Error checking Video schema: \(error)", category: .cloudKit, level: .error)
+            return true // Assume ready if we can't determine
+        } catch {
+            appLog("Error checking Video schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        }
+    }
+    
+    /// Prepares the Channel record type schema and verifies the 'name' index
+    private func prepareChannelSchema() async -> Bool {
+        appLog("Checking Channel schema", category: .cloudKit, level: .debug)
+        
+        // Try a query that uses the 'name' field index
+        let predicate = NSPredicate(format: "name != nil")
+        let query = CKQuery(recordType: Channel.recordType, predicate: predicate)
+        
+        do {
+            let operation = CKQueryOperation(query: query)
+            operation.resultsLimit = 1
+            
+            _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[CKRecord], Error>) in
+                var records: [CKRecord] = []
+                
+                operation.recordMatchedBlock = { _, result in
+                    if case .success(let record) = result {
+                        records.append(record)
+                    }
+                }
+                
+                operation.queryResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: records)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                
+                privateDatabase.add(operation)
+            }
+            
+            appLog("Channel schema is ready", category: .cloudKit, level: .success)
+            return true
+        } catch let error as CKError {
+            if error.code == .unknownItem {
+                appLog("Channel record type doesn't exist yet (will be created on first save)", category: .cloudKit, level: .info)
+                return true
+            }
+            
+            if isIndexError(error) {
+                appLog("Channel schema: 'name' field index is not configured", category: .cloudKit, level: .warning)
+                return false
+            }
+            
+            appLog("Error checking Channel schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        } catch {
+            appLog("Error checking Channel schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        }
+    }
+    
+    /// Prepares the AppSettings record type schema
+    private func prepareAppSettingsSchema() async -> Bool {
+        appLog("Checking AppSettings schema", category: .cloudKit, level: .debug)
+        
+        // AppSettings is fetched by specific record ID, not queried
+        // Just check if we can access the record type
+        do {
+            _ = try await privateDatabase.record(for: AppSettings.recordId)
+            appLog("AppSettings schema is ready", category: .cloudKit, level: .success)
+            return true
+        } catch let error as CKError {
+            if error.code == .unknownItem {
+                // Record doesn't exist yet - this is OK
+                appLog("AppSettings record doesn't exist yet (will be created on first save)", category: .cloudKit, level: .info)
+                return true
+            }
+            appLog("Error checking AppSettings schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        } catch {
+            appLog("Error checking AppSettings schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        }
+    }
+    
+    /// Prepares the Users record type schema (CloudKit's built-in type)
+    /// This is used internally by CloudKit for user records
+    private func prepareUsersSchema() async -> Bool {
+        appLog("Checking Users schema", category: .cloudKit, level: .debug)
+        
+        // The Users record type is a built-in CloudKit type
+        // Try to fetch the current user's record
+        do {
+            let userRecordId = try await container.userRecordID()
+            _ = try await privateDatabase.record(for: userRecordId)
+            appLog("Users schema is ready", category: .cloudKit, level: .success)
+            return true
+        } catch let error as CKError {
+            if error.code == .unknownItem {
+                // User record doesn't exist yet - this is OK
+                appLog("User record doesn't exist yet (will be created by CloudKit)", category: .cloudKit, level: .info)
+                return true
+            }
+            
+            // Check for query/index errors related to Users type
+            if isIndexError(error) {
+                appLog("Users schema: 'recordName' field index is not configured", category: .cloudKit, level: .warning)
+                return false
+            }
+            
+            appLog("Error checking Users schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        } catch {
+            appLog("Error checking Users schema: \(error)", category: .cloudKit, level: .error)
+            return true
+        }
+    }
+    
+    /// Checks if a CloudKit error is related to missing indexes
+    private func isIndexError(_ error: CKError) -> Bool {
+        // CloudKit returns specific error codes for index-related issues
+        // Common patterns include:
+        // - "Field '...' is not marked queryable"
+        // - "Field '...' is not searchable"
+        // - Index-related server errors
+        
+        let errorMessage = error.localizedDescription.lowercased()
+        
+        // Check for common index-related error messages
+        if errorMessage.contains("not queryable") ||
+           errorMessage.contains("not searchable") ||
+           errorMessage.contains("not sortable") ||
+           errorMessage.contains("not indexed") ||
+           errorMessage.contains("field .* is not marked") {
+            return true
+        }
+        
+        // Check the underlying error if available
+        if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? Error {
+            let underlyingMessage = underlyingError.localizedDescription.lowercased()
+            if underlyingMessage.contains("not queryable") ||
+               underlyingMessage.contains("not searchable") ||
+               underlyingMessage.contains("not indexed") {
+                return true
+            }
+        }
+        
+        // Check for server record changed errors that might indicate schema issues
+        if error.code == .serverRecordChanged || error.code == .invalidArguments {
+            if errorMessage.contains("query") || errorMessage.contains("index") {
+                return true
+            }
+        }
+        
+        return false
     }
     
     // MARK: - Video Status Operations

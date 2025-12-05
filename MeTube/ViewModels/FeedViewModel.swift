@@ -164,9 +164,9 @@ class FeedViewModel: ObservableObject {
     
     init() {
         appLog("FeedViewModel initializing", category: .feed, level: .info)
-        // Load all data from CloudKit asynchronously
+        // Prepare schema and load all data from CloudKit asynchronously
         loadCachedData()
-        appLog("FeedViewModel initialized - loading data from CloudKit", category: .feed, level: .success)
+        appLog("FeedViewModel initialized - preparing schema and loading data from CloudKit", category: .feed, level: .success)
     }
     
     // MARK: - CloudKit Persistence
@@ -180,7 +180,23 @@ class FeedViewModel: ObservableObject {
         // CloudKit operations are async, so we need to start a Task
         // Store the task reference to allow cancellation if needed
         loadCacheTask = Task {
+            // Prepare schema first to check for any configuration issues
+            await prepareCloudKitSchema()
+            // Then load cached data
             await loadCachedDataFromCloudKit()
+        }
+    }
+    
+    /// Prepares the CloudKit schema and logs any configuration issues
+    private func prepareCloudKitSchema() async {
+        let result = await cloudKitService.prepareSchema()
+        
+        if !result.allReady {
+            // Log detailed errors for troubleshooting
+            for error in result.errors {
+                appLog("CloudKit schema issue: \(error)", category: .cloudKit, level: .warning)
+            }
+            appLog("CloudKit schema needs configuration. See CONFIG.md for setup instructions.", category: .cloudKit, level: .warning)
         }
     }
     
