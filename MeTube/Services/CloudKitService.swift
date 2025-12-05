@@ -102,6 +102,13 @@ class CloudKitService {
                     statuses[videoId] = status
                 }
             }
+        } catch let ckError as CKError {
+            // Handle "unknown item" error (record type doesn't exist yet)
+            // This is expected on fresh installs before any videos are saved
+            if ckError.code == .unknownItem {
+                return [:]
+            }
+            throw CloudKitError.networkError(ckError)
         } catch {
             throw CloudKitError.networkError(error)
         }
@@ -197,6 +204,13 @@ class CloudKitService {
         do {
             let records = try await performQuery(query)
             return records.compactMap { Channel(from: $0) }
+        } catch let ckError as CKError {
+            // Handle "unknown item" error (record type doesn't exist yet)
+            // This is expected on fresh installs before any channels are saved
+            if ckError.code == .unknownItem {
+                return []
+            }
+            throw CloudKitError.networkError(ckError)
         } catch {
             throw CloudKitError.networkError(error)
         }
