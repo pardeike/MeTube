@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// Error types for stream extraction
 enum StreamExtractionError: LocalizedError {
@@ -108,6 +109,13 @@ final class YouTubeStreamExtractor {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
         
+        // Get device information dynamically
+        let deviceModel = getDeviceModelIdentifier()
+        let osVersion = UIDevice.current.systemVersion
+        
+        // Calculate a signature timestamp based on current date (days since epoch)
+        let signatureTimestamp = calculateSignatureTimestamp()
+        
         // Innertube client context for iOS
         let requestBody: [String: Any] = [
             "videoId": videoId,
@@ -116,17 +124,17 @@ final class YouTubeStreamExtractor {
                     "clientName": "IOS",
                     "clientVersion": "19.29.1",
                     "deviceMake": "Apple",
-                    "deviceModel": "iPhone16,2",
+                    "deviceModel": deviceModel,
                     "platform": "MOBILE",
                     "osName": "iOS",
-                    "osVersion": "17.5.1.21F90",
+                    "osVersion": osVersion,
                     "hl": "en",
                     "gl": "US"
                 ]
             ],
             "playbackContext": [
                 "contentPlaybackContext": [
-                    "signatureTimestamp": "19999"
+                    "signatureTimestamp": signatureTimestamp
                 ]
             ]
         ]
@@ -141,6 +149,27 @@ final class YouTubeStreamExtractor {
         }
         
         return try parsePlayerResponse(data)
+    }
+    
+    /// Get the device model identifier (e.g., "iPhone14,2")
+    private func getDeviceModelIdentifier() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machineMirror = Mirror(reflecting: systemInfo.machine)
+        let identifier = machineMirror.children.reduce("") { identifier, element in
+            guard let value = element.value as? Int8, value != 0 else { return identifier }
+            return identifier + String(UnicodeScalar(UInt8(value)))
+        }
+        return identifier.isEmpty ? "iPhone" : identifier
+    }
+    
+    /// Calculate a signature timestamp (approximate days since YouTube epoch)
+    private func calculateSignatureTimestamp() -> String {
+        // YouTube signature timestamps are roughly days since a base date
+        // Using a reasonable base value that should work for most videos
+        let baseTimestamp = 19500
+        let daysSinceBase = Int(Date().timeIntervalSince1970 / 86400) - 19500
+        return String(baseTimestamp + max(0, daysSinceBase))
     }
     
     /// Extract stream URL using the video info endpoint (fallback)
