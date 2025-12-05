@@ -45,6 +45,12 @@ enum FeedConfig {
     
     /// Warning threshold (80% of quota)
     static let quotaWarningThreshold = 8000
+    
+    /// Key for storing cached channels
+    static let cachedChannelsKey = "com.metube.cachedChannels"
+    
+    /// Key for storing cached videos
+    static let cachedVideosKey = "com.metube.cachedVideos"
 }
 
 // MARK: - Loading State
@@ -164,8 +170,72 @@ class FeedViewModel: ObservableObject {
     // MARK: - Initialization
     
     init() {
+        appLog("FeedViewModel initializing", category: .feed, level: .info)
         loadQuotaInfo()
         loadLastRefreshDate()
+        loadCachedData()
+        appLog("FeedViewModel initialized", category: .feed, level: .success, context: [
+            "cachedChannels": channels.count,
+            "cachedVideos": allVideos.count,
+            "lastRefresh": lastRefreshDate?.description ?? "never"
+        ])
+    }
+    
+    // MARK: - Local Persistence
+    
+    /// Loads cached channels and videos from UserDefaults
+    private func loadCachedData() {
+        appLog("Loading cached data from UserDefaults", category: .persistence, level: .debug)
+        
+        // Load cached channels
+        if let channelsData = UserDefaults.standard.data(forKey: FeedConfig.cachedChannelsKey) {
+            do {
+                let decoder = JSONDecoder()
+                channels = try decoder.decode([Channel].self, from: channelsData)
+                appLog("Loaded \(channels.count) cached channels", category: .persistence, level: .success)
+            } catch {
+                appLog("Failed to decode cached channels: \(error)", category: .persistence, level: .error)
+            }
+        } else {
+            appLog("No cached channels found", category: .persistence, level: .info)
+        }
+        
+        // Load cached videos
+        if let videosData = UserDefaults.standard.data(forKey: FeedConfig.cachedVideosKey) {
+            do {
+                let decoder = JSONDecoder()
+                allVideos = try decoder.decode([Video].self, from: videosData)
+                appLog("Loaded \(allVideos.count) cached videos", category: .persistence, level: .success)
+            } catch {
+                appLog("Failed to decode cached videos: \(error)", category: .persistence, level: .error)
+            }
+        } else {
+            appLog("No cached videos found", category: .persistence, level: .info)
+        }
+    }
+    
+    /// Saves channels and videos to UserDefaults for persistence
+    private func saveCachedData() {
+        appLog("Saving data to cache", category: .persistence, level: .debug, context: [
+            "channels": channels.count,
+            "videos": allVideos.count
+        ])
+        
+        do {
+            let encoder = JSONEncoder()
+            
+            // Save channels
+            let channelsData = try encoder.encode(channels)
+            UserDefaults.standard.set(channelsData, forKey: FeedConfig.cachedChannelsKey)
+            
+            // Save videos
+            let videosData = try encoder.encode(allVideos)
+            UserDefaults.standard.set(videosData, forKey: FeedConfig.cachedVideosKey)
+            
+            appLog("Successfully saved cached data", category: .persistence, level: .success)
+        } catch {
+            appLog("Failed to save cached data: \(error)", category: .persistence, level: .error)
+        }
     }
     
     // MARK: - Public Methods
@@ -173,7 +243,10 @@ class FeedViewModel: ObservableObject {
     /// Performs a full refresh of the feed (subscriptions and all videos)
     /// Use this on first launch or when user explicitly requests full refresh
     func fullRefresh(accessToken: String) async {
+        appLog("Starting full refresh", category: .feed, level: .info)
+        
         guard !quotaInfo.isExceeded else {
+            appLog("Full refresh blocked - quota exceeded", category: .feed, level: .warning)
             error = "API quota exceeded. Quota resets at midnight Pacific Time."
             return
         }
@@ -184,22 +257,27 @@ class FeedViewModel: ObservableObject {
         
         do {
             // 1. Fetch all subscriptions with pagination
+            appLog("Fetching subscriptions", category: .youtube, level: .info)
             loadingState = .loadingSubscriptions(progress: "Fetching channels...")
             let fetchedChannels = try await youtubeService.fetchSubscriptions(accessToken: accessToken)
             channels = fetchedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
+            appLog("Fetched \(channels.count) channels", category: .youtube, level: .success)
             
             // Estimate quota: ~1 per 50 subscriptions + 1 per channel for uploads playlist
             let subscriptionQuota = (channels.count / 50) + 1 + (channels.count / 50) + 1
             addQuotaUsage(subscriptionQuota)
             
             // 2. Load existing video statuses from CloudKit
+            appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
             loadingState = .loadingStatuses
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+            appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
             
             // Store existing video IDs for comparison
             existingVideoIds = Set(allVideos.map { $0.id })
             
             // 3. Fetch videos from all channels with progress tracking
+            appLog("Fetching videos from \(channels.count) channels", category: .youtube, level: .info)
             var newVideos: [Video] = []
             var channelIndex = 0
             let totalChannels = channels.count
@@ -209,6 +287,8 @@ class FeedViewModel: ObservableObject {
             for batchStart in stride(from: 0, to: channels.count, by: batchSize) {
                 let batchEnd = min(batchStart + batchSize, channels.count)
                 let batch = Array(channels[batchStart..<batchEnd])
+                
+                appLog("Processing batch \(batchStart/batchSize + 1): channels \(batchStart+1)-\(batchEnd)", category: .feed, level: .debug)
                 
                 await withTaskGroup(of: (Int, [Video]).self) { group in
                     for (index, channel) in batch.enumerated() {
@@ -222,7 +302,7 @@ class FeedViewModel: ObservableObject {
                                 )
                                 return (absoluteIndex, videos)
                             } catch {
-                                print("Error fetching videos for \(channel.name): \(error)")
+                                appLog("Error fetching videos for \(channel.name): \(error)", category: .youtube, level: .error)
                                 return (absoluteIndex, [])
                             }
                         }
@@ -245,10 +325,13 @@ class FeedViewModel: ObservableObject {
                 
                 // Check quota after each batch
                 if quotaInfo.isExceeded {
+                    appLog("Quota exceeded during batch processing", category: .feed, level: .warning)
                     error = "API quota limit reached. Some channels may not have been loaded."
                     break
                 }
             }
+            
+            appLog("Fetched \(newVideos.count) total videos", category: .youtube, level: .success)
             
             // 4. Apply cached statuses and count new videos
             var newCount = 0
@@ -265,15 +348,24 @@ class FeedViewModel: ObservableObject {
             newVideosCount = newCount
             loadingState = .idle
             
-            // Save refresh timestamp
+            // Save refresh timestamp and cached data
             lastRefreshDate = Date()
             saveLastRefreshDate()
+            saveCachedData()
             UserDefaults.standard.set(Date(), forKey: FeedConfig.lastFullRefreshDateKey)
             
+            appLog("Full refresh completed", category: .feed, level: .success, context: [
+                "totalVideos": allVideos.count,
+                "newVideos": newCount,
+                "channels": channels.count
+            ])
+            
         } catch let apiError as YouTubeAPIError {
+            appLog("YouTube API error during full refresh: \(apiError)", category: .youtube, level: .error)
             handleAPIError(apiError)
             loadingState = .idle
         } catch {
+            appLog("Error during full refresh: \(error)", category: .feed, level: .error)
             self.error = error.localizedDescription
             loadingState = .idle
         }
@@ -282,23 +374,32 @@ class FeedViewModel: ObservableObject {
     /// Performs an incremental refresh - only fetches recent videos to find new content
     /// More quota-efficient than full refresh
     func incrementalRefresh(accessToken: String) async {
+        appLog("Starting incremental refresh", category: .feed, level: .info, context: [
+            "cachedChannels": channels.count,
+            "cachedVideos": allVideos.count
+        ])
+        
         guard !quotaInfo.isExceeded else {
+            appLog("Incremental refresh blocked - quota exceeded", category: .feed, level: .warning)
             error = "API quota exceeded. Quota resets at midnight Pacific Time."
             return
         }
         
         // If we have no data, do a full refresh
         guard !channels.isEmpty else {
+            appLog("No cached channels - falling back to full refresh", category: .feed, level: .info)
             await fullRefresh(accessToken: accessToken)
             return
         }
         
         // Check if we need a full refresh (once per day)
         if shouldDoFullRefresh() {
+            appLog("Full refresh interval exceeded - doing full refresh", category: .feed, level: .info)
             await fullRefresh(accessToken: accessToken)
             return
         }
         
+        appLog("Proceeding with incremental refresh for \(channels.count) channels", category: .feed, level: .info)
         loadingState = .refreshing
         error = nil
         newVideosCount = 0
@@ -306,6 +407,7 @@ class FeedViewModel: ObservableObject {
         do {
             // Store existing video IDs for comparison
             existingVideoIds = Set(allVideos.map { $0.id })
+            appLog("Existing video IDs count: \(existingVideoIds.count)", category: .feed, level: .debug)
             
             // Fetch only recent videos from each channel
             var newVideos: [Video] = []
@@ -320,7 +422,7 @@ class FeedViewModel: ObservableObject {
                                 maxResults: FeedConfig.videosPerChannelIncremental
                             )
                         } catch {
-                            print("Error fetching videos for \(channel.name): \(error)")
+                            appLog("Error fetching videos for \(channel.name): \(error)", category: .youtube, level: .error)
                             return []
                         }
                     }
@@ -331,12 +433,16 @@ class FeedViewModel: ObservableObject {
                 }
             }
             
+            appLog("Fetched \(newVideos.count) videos in incremental refresh", category: .youtube, level: .info)
+            
             // Estimate and track quota
             let quotaUsed = channels.count + (newVideos.count / 50) + 1
             addQuotaUsage(quotaUsed)
             
             // Load video statuses
+            appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+            appLog("Loaded \(videoStatusCache.count) video statuses", category: .cloudKit, level: .success)
             
             // Merge new videos with existing, avoiding duplicates
             var videoDict: [String: Video] = [:]
@@ -360,14 +466,22 @@ class FeedViewModel: ObservableObject {
             newVideosCount = newCount
             loadingState = .idle
             
-            // Save refresh timestamp
+            // Save refresh timestamp and cached data
             lastRefreshDate = Date()
             saveLastRefreshDate()
+            saveCachedData()
+            
+            appLog("Incremental refresh completed", category: .feed, level: .success, context: [
+                "totalVideos": allVideos.count,
+                "newVideos": newCount
+            ])
             
         } catch let apiError as YouTubeAPIError {
+            appLog("YouTube API error during incremental refresh: \(apiError)", category: .youtube, level: .error)
             handleAPIError(apiError)
             loadingState = .idle
         } catch {
+            appLog("Error during incremental refresh: \(error)", category: .feed, level: .error)
             self.error = error.localizedDescription
             loadingState = .idle
         }
@@ -375,46 +489,64 @@ class FeedViewModel: ObservableObject {
     
     /// Refreshes the feed - uses incremental if data exists, full otherwise
     func refreshFeed(accessToken: String) async {
+        appLog("refreshFeed called", category: .feed, level: .info, context: [
+            "hasVideos": !allVideos.isEmpty,
+            "hasChannels": !channels.isEmpty,
+            "videoCount": allVideos.count,
+            "channelCount": channels.count
+        ])
+        
         if allVideos.isEmpty || channels.isEmpty {
+            appLog("No cached data - will do full refresh", category: .feed, level: .info)
             await fullRefresh(accessToken: accessToken)
         } else {
+            appLog("Cached data exists - will do incremental refresh", category: .feed, level: .info)
             await incrementalRefresh(accessToken: accessToken)
         }
     }
     
     /// Forces a full refresh regardless of existing data
     func forceFullRefresh(accessToken: String) async {
+        appLog("Force full refresh requested", category: .feed, level: .info)
         await fullRefresh(accessToken: accessToken)
     }
     
     /// Loads only video statuses from CloudKit (for when videos are already loaded)
     func loadVideoStatuses() async {
+        appLog("Loading video statuses", category: .cloudKit, level: .info)
         do {
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+            appLog("Fetched \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
             
             // Apply cached statuses to existing videos
+            var updatedCount = 0
             for i in 0..<allVideos.count {
                 if let cachedStatus = videoStatusCache[allVideos[i].id] {
                     allVideos[i].status = cachedStatus
+                    updatedCount += 1
                 }
             }
+            appLog("Applied \(updatedCount) status updates to videos", category: .cloudKit, level: .info)
         } catch {
-            print("Error loading video statuses: \(error)")
+            appLog("Error loading video statuses: \(error)", category: .cloudKit, level: .error)
         }
     }
     
     /// Marks a video as watched
     func markAsWatched(_ video: Video) async {
+        appLog("Marking video as watched: \(video.title)", category: .feed, level: .info)
         await updateVideoStatus(video, newStatus: .watched)
     }
     
     /// Marks a video as skipped
     func markAsSkipped(_ video: Video) async {
+        appLog("Marking video as skipped: \(video.title)", category: .feed, level: .info)
         await updateVideoStatus(video, newStatus: .skipped)
     }
     
     /// Marks a video as unwatched
     func markAsUnwatched(_ video: Video) async {
+        appLog("Marking video as unwatched: \(video.title)", category: .feed, level: .info)
         await updateVideoStatus(video, newStatus: .unwatched)
     }
     

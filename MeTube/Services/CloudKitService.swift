@@ -43,6 +43,7 @@ class CloudKitService {
     private let privateDatabase: CKDatabase
     
     init(containerIdentifier: String = CloudKitConfig.containerIdentifier) {
+        appLog("Initializing CloudKitService with container: \(containerIdentifier)", category: .cloudKit, level: .info)
         self.container = CKContainer(identifier: containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
     }
@@ -51,10 +52,14 @@ class CloudKitService {
     
     /// Checks if iCloud is available
     func checkiCloudStatus() async -> Bool {
+        appLog("Checking iCloud status", category: .cloudKit, level: .debug)
         do {
             let status = try await container.accountStatus()
-            return status == .available
+            let isAvailable = status == .available
+            appLog("iCloud status: \(isAvailable ? "available" : "unavailable")", category: .cloudKit, level: isAvailable ? .success : .warning)
+            return isAvailable
         } catch {
+            appLog("Failed to check iCloud status: \(error)", category: .cloudKit, level: .error)
             return false
         }
     }
@@ -88,12 +93,14 @@ class CloudKitService {
     
     /// Fetches all video statuses from CloudKit
     func fetchAllVideoStatuses() async throws -> [String: VideoStatus] {
+        appLog("Fetching all video statuses from CloudKit", category: .cloudKit, level: .info)
         var statuses: [String: VideoStatus] = [:]
         
         let query = CKQuery(recordType: Video.recordType, predicate: NSPredicate(value: true))
         
         do {
             let records = try await performQuery(query)
+            appLog("Fetched \(records.count) records from CloudKit", category: .cloudKit, level: .debug)
             
             for record in records {
                 let videoId = record.recordID.recordName
@@ -102,14 +109,18 @@ class CloudKitService {
                     statuses[videoId] = status
                 }
             }
+            appLog("Successfully loaded \(statuses.count) video statuses", category: .cloudKit, level: .success)
         } catch let ckError as CKError {
             // Handle "unknown item" error (record type doesn't exist yet)
             // This is expected on fresh installs before any videos are saved
             if ckError.code == .unknownItem {
+                appLog("Record type doesn't exist yet (fresh install) - returning empty statuses", category: .cloudKit, level: .info)
                 return [:]
             }
+            appLog("CloudKit error fetching video statuses: \(ckError)", category: .cloudKit, level: .error)
             throw CloudKitError.networkError(ckError)
         } catch {
+            appLog("Error fetching video statuses: \(error)", category: .cloudKit, level: .error)
             throw CloudKitError.networkError(error)
         }
         

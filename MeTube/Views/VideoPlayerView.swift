@@ -27,7 +27,9 @@ enum YouTubeEmbedConfig {
     
     /// Build the full embed URL for a video ID
     static func embedURL(for videoId: String) -> String {
-        return "\(baseURL)\(videoId)?\(embedParameters)"
+        let url = "\(baseURL)\(videoId)?\(embedParameters)"
+        appLog("Building embed URL for video: \(videoId)", category: .player, level: .debug, context: ["url": url])
+        return url
     }
 }
 
@@ -47,6 +49,7 @@ struct VideoPlayerView: View {
     @State private var showingControls = true
     @State private var controlsTimer: Timer?
     @State private var currentVideoId: String
+    @State private var webViewLoaded = false
     
     init(video: Video, onDismiss: @escaping () -> Void, onMarkWatched: @escaping () -> Void, nextVideo: Video? = nil, onNextVideo: ((Video) -> Void)? = nil) {
         self.video = video
@@ -55,6 +58,11 @@ struct VideoPlayerView: View {
         self.nextVideo = nextVideo
         self.onNextVideo = onNextVideo
         self._currentVideoId = State(initialValue: video.id)
+        appLog("VideoPlayerView initialized", category: .player, level: .info, context: [
+            "videoId": video.id,
+            "title": video.title,
+            "duration": video.duration
+        ])
     }
     
     var body: some View {
@@ -64,16 +72,36 @@ struct VideoPlayerView: View {
                 Color.black.edgesIgnoringSafeArea(.all)
                 
                 // YouTube Player
-                YouTubePlayerView(videoId: currentVideoId)
-                    .edgesIgnoringSafeArea(.all)
-                    .id(currentVideoId) // Force recreate when video changes
+                YouTubePlayerView(videoId: currentVideoId, onLoaded: {
+                    appLog("YouTube player loaded for video: \(currentVideoId)", category: .player, level: .success)
+                    webViewLoaded = true
+                }, onError: { errorMessage in
+                    appLog("YouTube player error: \(errorMessage)", category: .player, level: .error)
+                })
+                .edgesIgnoringSafeArea(.all)
+                .id(currentVideoId) // Force recreate when video changes
+                
+                // Loading indicator
+                if !webViewLoaded {
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(.white)
+                        Text("Loading video...")
+                            .foregroundColor(.white)
+                            .padding(.top, 8)
+                    }
+                }
                 
                 // Overlay Controls
                 VStack {
                     // Top Bar
                     if showingControls {
                         HStack {
-                            Button(action: onDismiss) {
+                            Button(action: {
+                                appLog("Dismiss button tapped", category: .player, level: .info)
+                                onDismiss()
+                            }) {
                                 Image(systemName: "xmark")
                                     .font(.title2)
                                     .foregroundColor(.white)
@@ -88,7 +116,10 @@ struct VideoPlayerView: View {
                             AirPlayButton()
                                 .frame(width: 44, height: 44)
                             
-                            Button(action: markWatchedAndAdvance) {
+                            Button(action: {
+                                appLog("Mark watched button tapped", category: .player, level: .info)
+                                markWatchedAndAdvance()
+                            }) {
                                 Image(systemName: "checkmark.circle")
                                     .font(.title2)
                                     .foregroundColor(.white)
@@ -160,16 +191,20 @@ struct VideoPlayerView: View {
                     }
                 }
             }
+            .contentShape(Rectangle())
             .onTapGesture {
+                appLog("Player view tapped - toggling controls", category: .player, level: .debug)
                 withAnimation {
                     showingControls.toggle()
                 }
                 resetControlsTimer()
             }
             .onAppear {
+                appLog("VideoPlayerView appeared", category: .player, level: .info)
                 resetControlsTimer()
             }
             .onDisappear {
+                appLog("VideoPlayerView disappeared", category: .player, level: .info)
                 controlsTimer?.invalidate()
             }
         }
@@ -178,8 +213,13 @@ struct VideoPlayerView: View {
     
     /// Marks the current video as watched and advances to the next video if available
     private func markWatchedAndAdvance() {
+        appLog("markWatchedAndAdvance called", category: .player, level: .info, context: [
+            "currentVideo": video.id,
+            "hasNextVideo": nextVideo != nil
+        ])
         onMarkWatched()
         if let next = nextVideo {
+            appLog("Advancing to next video: \(next.id)", category: .player, level: .info)
             onNextVideo?(next)
         }
     }
@@ -200,8 +240,16 @@ struct VideoPlayerView: View {
 
 struct YouTubePlayerView: UIViewRepresentable {
     let videoId: String
+    var onLoaded: (() -> Void)?
+    var onError: ((String) -> Void)?
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onLoaded: onLoaded, onError: onError)
+    }
     
     func makeUIView(context: Context) -> WKWebView {
+        appLog("Creating WKWebView for video: \(videoId)", category: .player, level: .debug)
+        
         let configuration = WKWebViewConfiguration()
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
@@ -210,11 +258,14 @@ struct YouTubePlayerView: UIViewRepresentable {
         webView.scrollView.isScrollEnabled = false
         webView.isOpaque = false
         webView.backgroundColor = .black
+        webView.navigationDelegate = context.coordinator
         
         return webView
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
+        appLog("Updating WKWebView with videoId: \(videoId)", category: .player, level: .debug)
+        
         let embedURL = YouTubeEmbedConfig.embedURL(for: videoId)
         // Iframe permissions limited to only what's needed for video playback
         // - autoplay: Required for auto-starting videos
@@ -241,7 +292,33 @@ struct YouTubePlayerView: UIViewRepresentable {
         </html>
         """
         
+        appLog("Loading HTML content for video player", category: .player, level: .debug)
         webView.loadHTMLString(embedHTML, baseURL: URL(string: "https://www.youtube.com"))
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var onLoaded: (() -> Void)?
+        var onError: ((String) -> Void)?
+        
+        init(onLoaded: (() -> Void)?, onError: ((String) -> Void)?) {
+            self.onLoaded = onLoaded
+            self.onError = onError
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            appLog("WKWebView did finish navigation", category: .player, level: .success)
+            onLoaded?()
+        }
+        
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            appLog("WKWebView navigation failed: \(error)", category: .player, level: .error)
+            onError?(error.localizedDescription)
+        }
+        
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            appLog("WKWebView provisional navigation failed: \(error)", category: .player, level: .error)
+            onError?(error.localizedDescription)
+        }
     }
 }
 

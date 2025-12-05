@@ -44,16 +44,21 @@ final class YouTubeService: Sendable {
     
     init(session: URLSession = .shared) {
         self.session = session
+        appLog("YouTubeService initialized", category: .youtube, level: .info)
     }
     
     // MARK: - Subscriptions
     
     /// Fetches all subscribed channels for the authenticated user
     func fetchSubscriptions(accessToken: String) async throws -> [Channel] {
+        appLog("Fetching subscriptions", category: .youtube, level: .info)
         var allChannels: [Channel] = []
         var nextPageToken: String? = nil
+        var pageCount = 0
         
         repeat {
+            pageCount += 1
+            appLog("Fetching subscriptions page \(pageCount)", category: .youtube, level: .debug)
             let response = try await fetchSubscriptionsPage(accessToken: accessToken, pageToken: nextPageToken)
             
             for item in response.items {
@@ -67,18 +72,25 @@ final class YouTubeService: Sendable {
             }
             
             nextPageToken = response.nextPageToken
+            appLog("Page \(pageCount): fetched \(response.items.count) channels, total: \(allChannels.count)", category: .youtube, level: .debug)
         } while nextPageToken != nil
         
+        appLog("Fetched \(allChannels.count) total channels from \(pageCount) pages", category: .youtube, level: .success)
+        
         // Fetch uploads playlist IDs for all channels
+        appLog("Fetching uploads playlist IDs for \(allChannels.count) channels", category: .youtube, level: .info)
         let channelIds = allChannels.map { $0.id }
         let uploadsPlaylistIds = try await fetchUploadsPlaylistIds(channelIds: channelIds, accessToken: accessToken)
         
         // Update channels with uploads playlist IDs
+        var channelsWithPlaylist = 0
         for i in 0..<allChannels.count {
             if let playlistId = uploadsPlaylistIds[allChannels[i].id] {
                 allChannels[i].uploadsPlaylistId = playlistId
+                channelsWithPlaylist += 1
             }
         }
+        appLog("Updated \(channelsWithPlaylist) channels with uploads playlist IDs", category: .youtube, level: .success)
         
         return allChannels
     }
@@ -138,8 +150,11 @@ final class YouTubeService: Sendable {
     /// Fetches recent videos from a channel's uploads playlist
     func fetchChannelVideos(channel: Channel, accessToken: String, maxResults: Int = 20) async throws -> [Video] {
         guard let uploadsPlaylistId = channel.uploadsPlaylistId else {
+            appLog("No uploads playlist for channel: \(channel.name)", category: .youtube, level: .warning)
             return []
         }
+        
+        appLog("Fetching videos for channel: \(channel.name)", category: .youtube, level: .debug)
         
         // Fetch playlist items
         let playlistItems = try await fetchPlaylistItems(playlistId: uploadsPlaylistId, accessToken: accessToken, maxResults: maxResults)
@@ -152,6 +167,7 @@ final class YouTubeService: Sendable {
         
         // Create Video objects, filtering out Shorts
         var videos: [Video] = []
+        var shortsFiltered = 0
         
         for item in playlistItems {
             let videoId = item.contentDetails.videoId
@@ -159,6 +175,7 @@ final class YouTubeService: Sendable {
             
             // Skip shorts (videos under 60 seconds)
             if duration < 60 {
+                shortsFiltered += 1
                 continue
             }
             
@@ -178,6 +195,8 @@ final class YouTubeService: Sendable {
             
             videos.append(video)
         }
+        
+        appLog("Channel \(channel.name): \(videos.count) videos (filtered \(shortsFiltered) shorts)", category: .youtube, level: .debug)
         
         return videos
     }

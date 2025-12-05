@@ -19,15 +19,17 @@ struct VideoRowView: View {
                     case .empty:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(16/9, contentMode: .fit)
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            )
                     case .success(let image):
                         image
                             .resizable()
-                            .aspectRatio(16/9, contentMode: .fit)
+                            .scaledToFill()
                     case .failure:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(16/9, contentMode: .fit)
                             .overlay(
                                 Image(systemName: "play.rectangle")
                                     .foregroundColor(.gray)
@@ -35,10 +37,10 @@ struct VideoRowView: View {
                     @unknown default:
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .aspectRatio(16/9, contentMode: .fit)
                     }
                 }
-                .frame(width: 160)
+                .frame(width: 160, height: 90) // Fixed 16:9 aspect ratio frame
+                .clipped()
                 .cornerRadius(8)
                 
                 // Duration Badge
