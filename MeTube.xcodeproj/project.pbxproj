@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0673A8962EE3044800C31341 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
 		100000001 /* MeTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000001 /* MeTubeApp.swift */; };
 		100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000002 /* ContentView.swift */; };
 		100000003 /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000003 /* Channel.swift */; };
@@ -27,6 +28,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0673A8952EE3044800C31341 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		200000000 /* MeTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		200000001 /* MeTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
 		200000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 		400000006 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				0673A8952EE3044800C31341 /* Logger.swift */,
 				200000006 /* YouTubeService.swift */,
 				200000007 /* CloudKitService.swift */,
 				200000008 /* AuthenticationManager.swift */,
@@ -235,6 +238,7 @@
 				100000006 /* YouTubeService.swift in Sources */,
 				100000007 /* CloudKitService.swift in Sources */,
 				100000008 /* AuthenticationManager.swift in Sources */,
+				0673A8962EE3044800C31341 /* Logger.swift in Sources */,
 				100000009 /* FeedViewModel.swift in Sources */,
 				100000010 /* PlayerViewModel.swift in Sources */,
 				100000011 /* LoginView.swift in Sources */,
