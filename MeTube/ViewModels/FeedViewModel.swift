@@ -162,6 +162,13 @@ class FeedViewModel: ObservableObject {
     private var videoStatusCache: [String: VideoStatus] = [:]
     private var existingVideoIds: Set<String> = []
     
+    // MARK: - Task Management
+    
+    /// Task for loading cached data from CloudKit
+    private var loadCacheTask: Task<Void, Never>?
+    /// Task for saving cached data to CloudKit
+    private var saveCacheTask: Task<Void, Never>?
+    
     // MARK: - Initialization
     
     init() {
@@ -181,9 +188,12 @@ class FeedViewModel: ObservableObject {
     /// Loads cached channels and videos from CloudKit
     /// This syncs data across devices and avoids the ~4MB UserDefaults size limit
     private func loadCachedData() {
+        // Cancel any existing load task
+        loadCacheTask?.cancel()
+        
         // CloudKit operations are async, so we need to start a Task
-        // This provides initial data while the app loads
-        Task {
+        // Store the task reference to allow cancellation if needed
+        loadCacheTask = Task {
             await loadCachedDataFromCloudKit()
         }
     }
@@ -217,7 +227,11 @@ class FeedViewModel: ObservableObject {
     
     /// Saves channels and videos to CloudKit for persistence and cross-device sync
     private func saveCachedData() {
-        Task {
+        // Cancel any existing save task to avoid redundant saves
+        saveCacheTask?.cancel()
+        
+        // Store the task reference to prevent concurrent saves
+        saveCacheTask = Task {
             await saveCachedDataToCloudKit()
         }
     }
