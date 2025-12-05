@@ -270,9 +270,15 @@ class YouTubeService {
         return formatter.date(from: dateString)
     }
     
-    /// Parses an ISO 8601 duration string (e.g., "PT1H2M10S") to TimeInterval
+    /// Parses an ISO 8601 duration string to TimeInterval (seconds)
+    /// Format: PT[hours]H[minutes]M[seconds]S
+    /// Examples:
+    /// - "PT1H2M10S" = 1 hour, 2 minutes, 10 seconds = 3730 seconds
+    /// - "PT5M30S" = 5 minutes, 30 seconds = 330 seconds
+    /// - "PT45S" = 45 seconds
     private func parseISO8601Duration(_ durationString: String) -> TimeInterval {
         var duration: TimeInterval = 0
+        // Regex captures optional hours (H), minutes (M), and seconds (S) groups
         let pattern = "PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?"
         
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),

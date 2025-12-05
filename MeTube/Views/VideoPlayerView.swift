@@ -9,6 +9,28 @@ import SwiftUI
 import WebKit
 import AVKit
 
+// MARK: - YouTube Embed Configuration
+
+/// Configuration for YouTube embed player
+enum YouTubeEmbedConfig {
+    /// Base URL for YouTube embed
+    static let baseURL = "https://www.youtube.com/embed/"
+    
+    /// YouTube embed parameters for distraction-free playback
+    /// - autoplay: Start playing immediately
+    /// - playsinline: Play inline on iOS instead of fullscreen
+    /// - modestbranding: Reduce YouTube branding
+    /// - rel: Don't show related videos at end
+    /// - fs: Allow fullscreen
+    /// - controls: Show player controls
+    static let embedParameters = "autoplay=1&playsinline=1&modestbranding=1&rel=0&fs=1&controls=1"
+    
+    /// Build the full embed URL for a video ID
+    static func embedURL(for videoId: String) -> String {
+        return "\(baseURL)\(videoId)?\(embedParameters)"
+    }
+}
+
 struct VideoPlayerView: View {
     let video: Video
     let onDismiss: () -> Void
@@ -129,6 +151,7 @@ struct YouTubePlayerView: UIViewRepresentable {
     }
     
     func updateUIView(_ webView: WKWebView, context: Context) {
+        let embedURL = YouTubeEmbedConfig.embedURL(for: videoId)
         let embedHTML = """
         <!DOCTYPE html>
         <html>
@@ -142,7 +165,7 @@ struct YouTubePlayerView: UIViewRepresentable {
         </head>
         <body>
             <iframe
-                src="https://www.youtube.com/embed/\(videoId)?autoplay=1&playsinline=1&modestbranding=1&rel=0&fs=1&controls=1"
+                src="\(embedURL)"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowfullscreen>
             </iframe>
