@@ -13,35 +13,46 @@ struct FeedView: View {
     @State private var selectedVideo: Video?
     @State private var showingPlayer = false
     @State private var showingError = false
+    @State private var showingQuotaInfo = false
     
     var body: some View {
         NavigationView {
-            Group {
-                if feedViewModel.isLoading && feedViewModel.allVideos.isEmpty {
-                    LoadingView()
-                } else if feedViewModel.filteredVideos.isEmpty {
-                    EmptyFeedView(
-                        hasVideos: !feedViewModel.allVideos.isEmpty,
-                        searchText: feedViewModel.searchText
-                    )
-                } else {
-                    VideoListView(
-                        videos: feedViewModel.filteredVideos,
-                        onVideoTap: { video in
-                            selectedVideo = video
-                            showingPlayer = true
-                        },
-                        onMarkWatched: { video in
-                            Task {
-                                await feedViewModel.markAsWatched(video)
+            ZStack {
+                Group {
+                    if feedViewModel.loadingState.isLoading && feedViewModel.allVideos.isEmpty {
+                        DetailedLoadingView(loadingState: feedViewModel.loadingState)
+                    } else if feedViewModel.filteredVideos.isEmpty {
+                        EmptyFeedView(
+                            hasVideos: !feedViewModel.allVideos.isEmpty,
+                            searchText: feedViewModel.searchText
+                        )
+                    } else {
+                        VideoListView(
+                            videos: feedViewModel.filteredVideos,
+                            onVideoTap: { video in
+                                selectedVideo = video
+                                showingPlayer = true
+                            },
+                            onMarkWatched: { video in
+                                Task {
+                                    await feedViewModel.markAsWatched(video)
+                                }
+                            },
+                            onMarkSkipped: { video in
+                                Task {
+                                    await feedViewModel.markAsSkipped(video)
+                                }
                             }
-                        },
-                        onMarkSkipped: { video in
-                            Task {
-                                await feedViewModel.markAsSkipped(video)
-                            }
-                        }
-                    )
+                        )
+                    }
+                }
+                
+                // Overlay loading indicator when refreshing with existing data
+                if feedViewModel.loadingState.isLoading && !feedViewModel.allVideos.isEmpty {
+                    VStack {
+                        RefreshIndicatorView(loadingState: feedViewModel.loadingState)
+                        Spacer()
+                    }
                 }
             }
             .navigationTitle("Feed")
@@ -49,28 +60,50 @@ struct FeedView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button(action: {
-                            feedViewModel.selectedStatus = .unwatched
-                        }) {
-                            Label("Unwatched", systemImage: feedViewModel.selectedStatus == .unwatched ? "checkmark" : "")
+                        Section("Filter") {
+                            Button(action: {
+                                feedViewModel.selectedStatus = .unwatched
+                            }) {
+                                Label("Unwatched", systemImage: feedViewModel.selectedStatus == .unwatched ? "checkmark" : "")
+                            }
+                            
+                            Button(action: {
+                                feedViewModel.selectedStatus = nil
+                            }) {
+                                Label("All Videos", systemImage: feedViewModel.selectedStatus == nil ? "checkmark" : "")
+                            }
+                            
+                            Button(action: {
+                                feedViewModel.selectedStatus = .watched
+                            }) {
+                                Label("Watched", systemImage: feedViewModel.selectedStatus == .watched ? "checkmark" : "")
+                            }
+                            
+                            Button(action: {
+                                feedViewModel.selectedStatus = .skipped
+                            }) {
+                                Label("Skipped", systemImage: feedViewModel.selectedStatus == .skipped ? "checkmark" : "")
+                            }
                         }
                         
-                        Button(action: {
-                            feedViewModel.selectedStatus = nil
-                        }) {
-                            Label("All Videos", systemImage: feedViewModel.selectedStatus == nil ? "checkmark" : "")
+                        Section("Refresh") {
+                            Button(action: {
+                                Task {
+                                    if let token = await authManager.getAccessToken() {
+                                        await feedViewModel.forceFullRefresh(accessToken: token)
+                                    }
+                                }
+                            }) {
+                                Label("Full Refresh", systemImage: "arrow.clockwise.circle")
+                            }
                         }
                         
-                        Button(action: {
-                            feedViewModel.selectedStatus = .watched
-                        }) {
-                            Label("Watched", systemImage: feedViewModel.selectedStatus == .watched ? "checkmark" : "")
-                        }
-                        
-                        Button(action: {
-                            feedViewModel.selectedStatus = .skipped
-                        }) {
-                            Label("Skipped", systemImage: feedViewModel.selectedStatus == .skipped ? "checkmark" : "")
+                        Section("Info") {
+                            Button(action: {
+                                showingQuotaInfo = true
+                            }) {
+                                Label("API Quota: \(feedViewModel.quotaInfo.remainingQuota)", systemImage: quotaIcon)
+                            }
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
@@ -107,6 +140,9 @@ struct FeedView: View {
             } message: {
                 Text(feedViewModel.error ?? "Unknown error")
             }
+            .sheet(isPresented: $showingQuotaInfo) {
+                QuotaInfoView(quotaInfo: feedViewModel.quotaInfo, lastRefresh: feedViewModel.lastRefreshDate)
+            }
             .fullScreenCover(isPresented: $showingPlayer) {
                 if let video = selectedVideo {
                     VideoPlayerView(video: video, onDismiss: {
@@ -119,8 +155,201 @@ struct FeedView: View {
                 }
             }
         }
+        .onAppear {
+            // Schedule background refresh when app comes to foreground
+            feedViewModel.scheduleBackgroundRefresh()
+        }
+    }
+    
+    private var quotaIcon: String {
+        if feedViewModel.quotaInfo.isExceeded {
+            return "exclamationmark.triangle.fill"
+        } else if feedViewModel.quotaInfo.isWarning {
+            return "exclamationmark.circle"
+        } else {
+            return "chart.bar"
+        }
     }
 }
+
+// MARK: - Detailed Loading View
+
+struct DetailedLoadingView: View {
+    let loadingState: LoadingState
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            // Animated loading indicator
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 4)
+                    .frame(width: 60, height: 60)
+                
+                Circle()
+                    .trim(from: 0, to: 0.7)
+                    .stroke(Color.red, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 60, height: 60)
+                    .rotationEffect(Angle(degrees: loadingRotation))
+                    .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: loadingRotation)
+            }
+            .onAppear {
+                loadingRotation = 360
+            }
+            
+            VStack(spacing: 8) {
+                Text(loadingTitle)
+                    .font(.headline)
+                
+                Text(loadingState.description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            
+            // Progress bar for video loading
+            if case .loadingVideos(let index, let total, _) = loadingState {
+                VStack(spacing: 4) {
+                    ProgressView(value: Double(index), total: Double(total))
+                        .progressViewStyle(.linear)
+                        .frame(width: 200)
+                    
+                    Text("\(index) of \(total) channels")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+    }
+    
+    @State private var loadingRotation: Double = 0
+    
+    private var loadingTitle: String {
+        switch loadingState {
+        case .loadingSubscriptions:
+            return "Fetching Subscriptions"
+        case .loadingVideos:
+            return "Loading Videos"
+        case .loadingStatuses:
+            return "Syncing Status"
+        case .refreshing:
+            return "Checking for Updates"
+        case .backgroundRefreshing:
+            return "Background Update"
+        default:
+            return "Loading"
+        }
+    }
+}
+
+// MARK: - Refresh Indicator View
+
+struct RefreshIndicatorView: View {
+    let loadingState: LoadingState
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            
+            Text(loadingState.description)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .cornerRadius(20)
+        .padding(.top, 8)
+    }
+}
+
+// MARK: - Quota Info View
+
+struct QuotaInfoView: View {
+    let quotaInfo: QuotaInfo
+    let lastRefresh: Date?
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section("API Usage Today") {
+                    HStack {
+                        Text("Used")
+                        Spacer()
+                        Text("\(quotaInfo.usedToday) units")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Text("Remaining")
+                        Spacer()
+                        Text("\(quotaInfo.remainingQuota) units")
+                            .foregroundColor(quotaInfo.isWarning ? .orange : .secondary)
+                    }
+                    
+                    HStack {
+                        Text("Daily Limit")
+                        Spacer()
+                        Text("\(FeedConfig.dailyQuotaLimit) units")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Progress bar
+                    VStack(alignment: .leading, spacing: 4) {
+                        ProgressView(value: Double(quotaInfo.usedToday), total: Double(FeedConfig.dailyQuotaLimit))
+                            .progressViewStyle(.linear)
+                            .tint(quotaInfo.isExceeded ? .red : (quotaInfo.isWarning ? .orange : .blue))
+                        
+                        Text(String(format: "%.1f%% used", quotaInfo.percentUsed))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section("Quota Reset") {
+                    HStack {
+                        Text("Resets at")
+                        Spacer()
+                        Text("Midnight Pacific Time")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section("Last Refresh") {
+                    if let lastRefresh = lastRefresh {
+                        HStack {
+                            Text("Time")
+                            Spacer()
+                            Text(lastRefresh, style: .relative)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        Text("Not yet refreshed")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Section(footer: Text("The YouTube API has a daily quota of 10,000 units. Each refresh uses approximately 1-5 units per channel. Quota resets at midnight Pacific Time.")) {
+                    EmptyView()
+                }
+            }
+            .navigationTitle("API Quota")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Empty Feed View
 
 struct LoadingView: View {
     var body: some View {
