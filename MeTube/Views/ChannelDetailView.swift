@@ -80,15 +80,33 @@ struct ChannelDetailView: View {
         }
         .fullScreenCover(isPresented: $showingPlayer) {
             if let video = selectedVideo {
-                VideoPlayerView(video: video, onDismiss: {
-                    showingPlayer = false
-                }, onMarkWatched: {
-                    Task {
-                        await feedViewModel.markAsWatched(video)
+                let nextVideo = getNextVideo(after: video)
+                VideoPlayerView(
+                    video: video,
+                    onDismiss: {
+                        showingPlayer = false
+                    },
+                    onMarkWatched: {
+                        Task {
+                            await feedViewModel.markAsWatched(video)
+                        }
+                    },
+                    nextVideo: nextVideo,
+                    onNextVideo: { next in
+                        selectedVideo = next
                     }
-                })
+                )
             }
         }
+    }
+    
+    /// Gets the next video after the current one in this channel
+    private func getNextVideo(after video: Video) -> Video? {
+        guard let currentIndex = channelVideos.firstIndex(where: { $0.id == video.id }) else {
+            return channelVideos.first
+        }
+        let nextIndex = currentIndex + 1
+        return nextIndex < channelVideos.count ? channelVideos[nextIndex] : nil
     }
 }
 

@@ -90,7 +90,7 @@ struct LoginView: View {
                 }
                 .padding(.bottom, 20)
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingConfig) {
                 ConfigurationSheet(clientId: $clientId, authManager: authManager)
             }
