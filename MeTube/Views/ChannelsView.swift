@@ -1,0 +1,160 @@
+//
+//  ChannelsView.swift
+//  MeTube
+//
+//  View showing all subscribed channels
+//
+
+import SwiftUI
+
+struct ChannelsView: View {
+    @EnvironmentObject var feedViewModel: FeedViewModel
+    @EnvironmentObject var authManager: AuthenticationManager
+    @State private var searchText: String = ""
+    
+    var filteredChannels: [Channel] {
+        if searchText.isEmpty {
+            return feedViewModel.channels
+        } else {
+            return feedViewModel.channels.filter {
+                $0.name.lowercased().contains(searchText.lowercased())
+            }
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if feedViewModel.isLoading && feedViewModel.channels.isEmpty {
+                    LoadingView()
+                } else if filteredChannels.isEmpty {
+                    EmptyChannelsView(hasChannels: !feedViewModel.channels.isEmpty)
+                } else {
+                    ChannelListView(channels: filteredChannels, feedViewModel: feedViewModel)
+                }
+            }
+            .navigationTitle("Channels")
+            .searchable(text: $searchText, prompt: "Search channels")
+            .refreshable {
+                if let token = await authManager.getAccessToken() {
+                    await feedViewModel.refreshFeed(accessToken: token)
+                }
+            }
+        }
+    }
+}
+
+struct EmptyChannelsView: View {
+    let hasChannels: Bool
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "person.3")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            if hasChannels {
+                Text("No channels match your search")
+                    .font(.headline)
+            } else {
+                Text("No subscriptions found")
+                    .font(.headline)
+                Text("Make sure you're subscribed to channels on YouTube")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding()
+    }
+}
+
+struct ChannelListView: View {
+    let channels: [Channel]
+    @ObservedObject var feedViewModel: FeedViewModel
+    
+    var body: some View {
+        List {
+            ForEach(channels) { channel in
+                NavigationLink(destination: ChannelDetailView(channel: channel)) {
+                    ChannelRowView(
+                        channel: channel,
+                        unwatchedCount: feedViewModel.unwatchedCount(for: channel.id)
+                    )
+                }
+            }
+        }
+        .listStyle(.plain)
+    }
+}
+
+struct ChannelRowView: View {
+    let channel: Channel
+    let unwatchedCount: Int
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Channel Thumbnail
+            AsyncImage(url: channel.thumbnailURL) { phase in
+                switch phase {
+                case .empty:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                case .failure:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
+                @unknown default:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 50, height: 50)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(channel.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                
+                if let description = channel.description, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            
+            Spacer()
+            
+            // Unwatched Badge
+            if unwatchedCount > 0 {
+                Text("\(unwatchedCount)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.red)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+#Preview {
+    ChannelsView()
+        .environmentObject(FeedViewModel())
+        .environmentObject(AuthenticationManager())
+}
