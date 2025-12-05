@@ -77,8 +77,10 @@ class CloudKitService {
         let usersSchemaReady: Bool
         let errors: [String]
         
+        /// Returns true if all schema components are ready
+        /// Note: errors array is derived from individual ready flags, so we only check the flags
         var allReady: Bool {
-            return videoSchemaReady && channelSchemaReady && appSettingsSchemaReady && usersSchemaReady && errors.isEmpty
+            return videoSchemaReady && channelSchemaReady && appSettingsSchemaReady && usersSchemaReady
         }
     }
     
