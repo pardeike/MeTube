@@ -53,20 +53,54 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     private let tokenKey = "com.metube.oauth.token"
     private let refreshTokenKey = "com.metube.oauth.refreshToken"
-    private let expirationKey = "com.metube.oauth.expiration"
     
-    // Client ID from Google Cloud Console
-    // For security, this is stored in UserDefaults after user configuration
+    // Client ID from Google Cloud Console - stored in CloudKit for cross-device sync
+    private var _clientId: String = ""
     private var clientId: String {
-        return UserDefaults.standard.string(forKey: "GoogleClientId") ?? ""
+        return _clientId
     }
     
+    // Token expiration - stored in CloudKit for cross-device sync
+    private var tokenExpiration: Date?
+    
     private var webAuthSession: ASWebAuthenticationSession?
+    private let cloudKitService = CloudKitService()
 
     @MainActor
     override init() {
         super.init()
-        loadStoredToken()
+        // Load settings from CloudKit asynchronously
+        Task {
+            await loadSettingsFromCloudKit()
+            loadStoredToken()
+        }
+    }
+    
+    // MARK: - CloudKit Settings
+    
+    @MainActor
+    private func loadSettingsFromCloudKit() async {
+        do {
+            if let settings = try await cloudKitService.fetchAppSettings() {
+                _clientId = settings.googleClientId ?? ""
+                tokenExpiration = settings.tokenExpiration
+                appLog("Loaded auth settings from CloudKit", category: .cloudKit, level: .success)
+            }
+        } catch {
+            appLog("Failed to load auth settings from CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+    }
+    
+    private func saveSettingsToCloudKit() async {
+        do {
+            var settings = (try? await cloudKitService.fetchAppSettings()) ?? .default
+            settings.googleClientId = _clientId
+            settings.tokenExpiration = tokenExpiration
+            try await cloudKitService.saveAppSettings(settings)
+            appLog("Saved auth settings to CloudKit", category: .cloudKit, level: .success)
+        } catch {
+            appLog("Failed to save auth settings to CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
     }
     
     // MARK: - Public Methods
@@ -74,7 +108,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     /// Checks if user is authenticated and token is valid
     @MainActor
     func checkAuthenticationStatus() {
-        if let expiration = UserDefaults.standard.object(forKey: expirationKey) as? Date {
+        if let expiration = tokenExpiration {
             if expiration > Date() {
                 isAuthenticated = true
             } else {
@@ -91,8 +125,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     /// Returns the current access token, refreshing if necessary
     func getAccessToken() async -> String? {
         // Check if token needs refresh
-        if let expiration = UserDefaults.standard.object(forKey: expirationKey) as? Date,
-           expiration <= Date() {
+        if let expiration = tokenExpiration, expiration <= Date() {
             await refreshTokenIfNeeded()
         }
         
@@ -147,13 +180,19 @@ class AuthenticationManager: NSObject, ObservableObject {
     @MainActor
     func signOut() {
         deleteToken()
-        UserDefaults.standard.removeObject(forKey: expirationKey)
+        tokenExpiration = nil
         isAuthenticated = false
+        Task {
+            await saveSettingsToCloudKit()
+        }
     }
     
     /// Configures the OAuth client ID
     func configure(clientId: String) {
-        UserDefaults.standard.set(clientId, forKey: "GoogleClientId")
+        _clientId = clientId
+        Task {
+            await saveSettingsToCloudKit()
+        }
     }
     
     // MARK: - Private Methods
@@ -280,9 +319,11 @@ class AuthenticationManager: NSObject, ObservableObject {
             SecItemAdd(refreshQuery as CFDictionary, nil)
         }
         
-        // Save expiration date
-        let expiration = Date().addingTimeInterval(TimeInterval(expiresIn))
-        UserDefaults.standard.set(expiration, forKey: expirationKey)
+        // Save expiration date to CloudKit
+        tokenExpiration = Date().addingTimeInterval(TimeInterval(expiresIn))
+        Task {
+            await saveSettingsToCloudKit()
+        }
     }
     
     private func retrieveToken() -> String? {
