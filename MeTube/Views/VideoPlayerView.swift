@@ -152,6 +152,10 @@ struct YouTubePlayerView: UIViewRepresentable {
     
     func updateUIView(_ webView: WKWebView, context: Context) {
         let embedURL = YouTubeEmbedConfig.embedURL(for: videoId)
+        // Iframe permissions limited to only what's needed for video playback
+        // - autoplay: Required for auto-starting videos
+        // - encrypted-media: Required for DRM-protected content
+        // - picture-in-picture: Allows PiP playback
         let embedHTML = """
         <!DOCTYPE html>
         <html>
@@ -166,7 +170,7 @@ struct YouTubePlayerView: UIViewRepresentable {
         <body>
             <iframe
                 src="\(embedURL)"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allow="autoplay; encrypted-media; picture-in-picture"
                 allowfullscreen>
             </iframe>
         </body>
