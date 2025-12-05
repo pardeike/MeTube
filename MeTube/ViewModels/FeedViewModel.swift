@@ -558,7 +558,7 @@ class FeedViewModel: ObservableObject {
         }
         
         loadingState = .backgroundRefreshing
-
+        
         // Only fetch very recent videos in background
         var newVideos: [Video] = []
 
