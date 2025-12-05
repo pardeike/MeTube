@@ -46,11 +46,11 @@ enum FeedConfig {
     /// Warning threshold (80% of quota)
     static let quotaWarningThreshold = 8000
     
-    /// Key for storing cached channels
-    static let cachedChannelsKey = "com.metube.cachedChannels"
+    /// Filename for storing cached channels (stored in Documents directory to avoid UserDefaults size limits)
+    static let cachedChannelsFilename = "cachedChannels.json"
     
-    /// Key for storing cached videos
-    static let cachedVideosKey = "com.metube.cachedVideos"
+    /// Filename for storing cached videos (stored in Documents directory to avoid UserDefaults size limits)
+    static let cachedVideosFilename = "cachedVideos.json"
 }
 
 // MARK: - Loading State
@@ -183,58 +183,79 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Local Persistence
     
-    /// Loads cached channels and videos from UserDefaults
+    /// Returns the URL for storing cached data files in the Documents directory
+    private func cacheFileURL(filename: String) -> URL? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            appLog("Failed to get documents directory", category: .persistence, level: .error)
+            return nil
+        }
+        return documentsDirectory.appendingPathComponent(filename)
+    }
+    
+    /// Loads cached channels and videos from files in the Documents directory
+    /// This avoids the ~4MB UserDefaults size limit that was causing errors
     private func loadCachedData() {
-        appLog("Loading cached data from UserDefaults", category: .persistence, level: .debug)
+        appLog("Loading cached data from files", category: .persistence, level: .debug)
         
         // Load cached channels
-        if let channelsData = UserDefaults.standard.data(forKey: FeedConfig.cachedChannelsKey) {
+        if let channelsURL = cacheFileURL(filename: FeedConfig.cachedChannelsFilename) {
             do {
+                let channelsData = try Data(contentsOf: channelsURL)
                 let decoder = JSONDecoder()
                 channels = try decoder.decode([Channel].self, from: channelsData)
                 appLog("Loaded \(channels.count) cached channels", category: .persistence, level: .success)
+            } catch CocoaError.fileReadNoSuchFile, CocoaError.fileNoSuchFile {
+                appLog("No cached channels file found", category: .persistence, level: .info)
             } catch {
                 appLog("Failed to decode cached channels: \(error)", category: .persistence, level: .error)
             }
-        } else {
-            appLog("No cached channels found", category: .persistence, level: .info)
         }
         
         // Load cached videos
-        if let videosData = UserDefaults.standard.data(forKey: FeedConfig.cachedVideosKey) {
+        if let videosURL = cacheFileURL(filename: FeedConfig.cachedVideosFilename) {
             do {
+                let videosData = try Data(contentsOf: videosURL)
                 let decoder = JSONDecoder()
                 allVideos = try decoder.decode([Video].self, from: videosData)
                 appLog("Loaded \(allVideos.count) cached videos", category: .persistence, level: .success)
+            } catch CocoaError.fileReadNoSuchFile, CocoaError.fileNoSuchFile {
+                appLog("No cached videos file found", category: .persistence, level: .info)
             } catch {
                 appLog("Failed to decode cached videos: \(error)", category: .persistence, level: .error)
             }
-        } else {
-            appLog("No cached videos found", category: .persistence, level: .info)
         }
     }
     
-    /// Saves channels and videos to UserDefaults for persistence
+    /// Saves channels and videos to files in the Documents directory for persistence
+    /// This avoids the ~4MB UserDefaults size limit that was causing errors
     private func saveCachedData() {
-        appLog("Saving data to cache", category: .persistence, level: .debug, context: [
+        appLog("Saving data to cache files", category: .persistence, level: .debug, context: [
             "channels": channels.count,
             "videos": allVideos.count
         ])
         
-        do {
-            let encoder = JSONEncoder()
-            
-            // Save channels
-            let channelsData = try encoder.encode(channels)
-            UserDefaults.standard.set(channelsData, forKey: FeedConfig.cachedChannelsKey)
-            
-            // Save videos
-            let videosData = try encoder.encode(allVideos)
-            UserDefaults.standard.set(videosData, forKey: FeedConfig.cachedVideosKey)
-            
-            appLog("Successfully saved cached data", category: .persistence, level: .success)
-        } catch {
-            appLog("Failed to save cached data: \(error)", category: .persistence, level: .error)
+        let encoder = JSONEncoder()
+        
+        // Save channels
+        if let channelsURL = cacheFileURL(filename: FeedConfig.cachedChannelsFilename) {
+            do {
+                let channelsData = try encoder.encode(channels)
+                try channelsData.write(to: channelsURL, options: .atomic)
+                appLog("Saved \(channels.count) channels to cache", category: .persistence, level: .success)
+            } catch {
+                appLog("Failed to save cached channels: \(error)", category: .persistence, level: .error)
+            }
+        }
+        
+        // Save videos
+        if let videosURL = cacheFileURL(filename: FeedConfig.cachedVideosFilename) {
+            do {
+                let videosData = try encoder.encode(allVideos)
+                try videosData.write(to: videosURL, options: .atomic)
+                appLog("Saved \(allVideos.count) videos to cache", category: .persistence, level: .success)
+            } catch {
+                appLog("Failed to save cached videos: \(error)", category: .persistence, level: .error)
+            }
         }
     }
     
