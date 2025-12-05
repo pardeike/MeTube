@@ -30,6 +30,10 @@ struct FeedView: View {
                         VideoListView(
                             videos: feedViewModel.filteredVideos,
                             onVideoTap: { video in
+                                appLog("Selecting video for playback: \(video.title)", category: .ui, level: .info, context: [
+                                    "videoId": video.id,
+                                    "duration": video.duration
+                                ])
                                 selectedVideo = video
                                 showingPlayer = true
                             },
@@ -433,6 +437,11 @@ struct VideoListView: View {
                 VideoRowView(video: video)
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        appLog("Video row tapped: \(video.title)", category: .ui, level: .info, context: [
+                            "videoId": video.id,
+                            "channelName": video.channelName,
+                            "thumbnailURL": video.thumbnailURL?.absoluteString ?? "nil"
+                        ])
                         onVideoTap(video)
                     }
                     .swipeActions(edge: .trailing) {
