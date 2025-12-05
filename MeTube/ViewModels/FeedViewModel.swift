@@ -196,7 +196,7 @@ class FeedViewModel: ObservableObject {
             for error in result.errors {
                 appLog("CloudKit schema issue: \(error)", category: .cloudKit, level: .warning)
             }
-            appLog("CloudKit schema needs configuration. See CONFIG.md for setup instructions.", category: .cloudKit, level: .warning)
+            appLog("CloudKit schema needs configuration. Open CloudKit Dashboard at https://icloud.developer.apple.com and configure indexes. See CONFIG.md section 'CloudKit Setup' > 'Step 3: Configure Field Indexes' for details.", category: .cloudKit, level: .warning)
         }
     }
     
