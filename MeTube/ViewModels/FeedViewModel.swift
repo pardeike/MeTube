@@ -15,7 +15,12 @@ import BackgroundTasks
 enum FeedConfig {
     /// Set to true to disable YouTube API calls for video discovery (uses CloudKit cache only)
     /// This helps avoid hitting API quota limits during testing
+    /// NOTE: Only enabled in DEBUG builds
+    #if DEBUG
     static let disableVideoAPIFetching = true
+    #else
+    static let disableVideoAPIFetching = false
+    #endif
     
     /// Number of videos to fetch per channel on refresh
     static let videosPerChannel = 20
