@@ -13,6 +13,10 @@ import BackgroundTasks
 
 /// Configuration constants for the feed
 enum FeedConfig {
+    /// Set to true to disable YouTube API calls for video discovery (uses CloudKit cache only)
+    /// This helps avoid hitting API quota limits during testing
+    static let disableVideoAPIFetching = true
+    
     /// Number of videos to fetch per channel on refresh
     static let videosPerChannel = 20
     
@@ -557,8 +561,21 @@ class FeedViewModel: ObservableObject {
             "hasVideos": !allVideos.isEmpty,
             "hasChannels": !channels.isEmpty,
             "videoCount": allVideos.count,
-            "channelCount": channels.count
+            "channelCount": channels.count,
+            "apiDisabled": FeedConfig.disableVideoAPIFetching
         ])
+        
+        // Check if API fetching is disabled (for quota preservation during testing)
+        if FeedConfig.disableVideoAPIFetching {
+            appLog("Video API fetching is DISABLED - using CloudKit cache only", category: .feed, level: .warning)
+            // Just ensure we have CloudKit data loaded
+            if allVideos.isEmpty {
+                appLog("No cached videos - attempting to load from CloudKit", category: .feed, level: .info)
+                // Trigger a cache reload
+                loadCachedData()
+            }
+            return
+        }
         
         if allVideos.isEmpty || channels.isEmpty {
             appLog("No cached data - will do full refresh", category: .feed, level: .info)
@@ -571,7 +588,16 @@ class FeedViewModel: ObservableObject {
     
     /// Forces a full refresh regardless of existing data
     func forceFullRefresh(accessToken: String) async {
-        appLog("Force full refresh requested", category: .feed, level: .info)
+        appLog("Force full refresh requested", category: .feed, level: .info, context: [
+            "apiDisabled": FeedConfig.disableVideoAPIFetching
+        ])
+        
+        // Check if API fetching is disabled
+        if FeedConfig.disableVideoAPIFetching {
+            appLog("Video API fetching is DISABLED - skipping full refresh", category: .feed, level: .warning)
+            return
+        }
+        
         await fullRefresh(accessToken: accessToken)
     }
     
