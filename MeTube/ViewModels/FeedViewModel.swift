@@ -161,6 +161,8 @@ class FeedViewModel: ObservableObject {
     private var loadCacheTask: Task<Void, Never>?
     /// Task for saving cached data to CloudKit
     private var saveCacheTask: Task<Void, Never>?
+    /// Task for loading video statuses in background
+    private var loadStatusTask: Task<Void, Never>?
     
     // MARK: - Initialization
     
@@ -250,7 +252,9 @@ class FeedViewModel: ObservableObject {
                 
                 // Load video statuses in the background without blocking the UI
                 // This allows users to see and interact with videos immediately
-                Task {
+                // Cancel any existing status load task
+                loadStatusTask?.cancel()
+                loadStatusTask = Task {
                     await loadVideoStatusesInBackground()
                 }
             } else {
@@ -389,7 +393,9 @@ class FeedViewModel: ObservableObject {
                 } else {
                     // Load statuses in background without blocking UI since we have videos to show
                     appLog("Loading video statuses from CloudKit (background)", category: .cloudKit, level: .info)
-                    Task {
+                    // Cancel any existing status load task
+                    loadStatusTask?.cancel()
+                    loadStatusTask = Task {
                         do {
                             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
                             appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit in background", category: .cloudKit, level: .success)
