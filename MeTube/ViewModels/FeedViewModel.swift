@@ -247,6 +247,12 @@ class FeedViewModel: ObservableObject {
             if !cachedVideos.isEmpty {
                 allVideos = cachedVideos
                 appLog("Loaded \(allVideos.count) cached videos from CloudKit", category: .cloudKit, level: .success)
+                
+                // Load video statuses in the background without blocking the UI
+                // This allows users to see and interact with videos immediately
+                Task {
+                    await loadVideoStatusesInBackground()
+                }
             } else {
                 appLog("No cached videos found in CloudKit", category: .cloudKit, level: .info)
             }
@@ -371,11 +377,30 @@ class FeedViewModel: ObservableObject {
             try await hubServerService.registerChannels(userId: hubUserId, channelIds: channelIds)
             appLog("Registered \(channelIds.count) channels with hub server", category: .feed, level: .success)
             
-            // 4. Load existing video statuses from CloudKit
-            appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
-            loadingState = .loadingStatuses
-            videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-            appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
+            // 4. Load existing video statuses from CloudKit if not already cached
+            // Only show loading state if we have no cached statuses and no cached videos
+            if videoStatusCache.isEmpty {
+                // Only block UI if we have no existing videos to show
+                if allVideos.isEmpty {
+                    appLog("Loading video statuses from CloudKit (blocking)", category: .cloudKit, level: .info)
+                    loadingState = .loadingStatuses
+                    videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+                    appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
+                } else {
+                    // Load statuses in background without blocking UI since we have videos to show
+                    appLog("Loading video statuses from CloudKit (background)", category: .cloudKit, level: .info)
+                    Task {
+                        do {
+                            videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+                            appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit in background", category: .cloudKit, level: .success)
+                        } catch {
+                            appLog("Error loading video statuses in background: \(error)", category: .cloudKit, level: .error)
+                        }
+                    }
+                }
+            } else {
+                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
+            }
             
             // Store existing video IDs for comparison
             existingVideoIds = Set(allVideos.map { $0.id })
@@ -474,10 +499,14 @@ class FeedViewModel: ObservableObject {
             )
             appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
             
-            // Load video statuses
-            appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
-            videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-            appLog("Loaded \(videoStatusCache.count) video statuses", category: .cloudKit, level: .success)
+            // Load video statuses only if not cached
+            if videoStatusCache.isEmpty {
+                appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
+                videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+                appLog("Loaded \(videoStatusCache.count) video statuses", category: .cloudKit, level: .success)
+            } else {
+                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
+            }
             
             // Convert VideoDTO to Video model and merge with existing
             var videoDict: [String: Video] = [:]
@@ -549,9 +578,10 @@ class FeedViewModel: ObservableObject {
         await fullRefresh(accessToken: accessToken)
     }
     
-    /// Loads only video statuses from CloudKit (for when videos are already loaded)
-    func loadVideoStatuses() async {
-        appLog("Loading video statuses", category: .cloudKit, level: .info)
+    /// Loads video statuses in the background without blocking the UI
+    /// This is called after cached videos are loaded to update their statuses
+    private func loadVideoStatusesInBackground() async {
+        appLog("Loading video statuses in background", category: .cloudKit, level: .info)
         do {
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
             appLog("Fetched \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
@@ -568,6 +598,24 @@ class FeedViewModel: ObservableObject {
         } catch {
             appLog("Error loading video statuses: \(error)", category: .cloudKit, level: .error)
         }
+    }
+    
+    /// Loads only video statuses from CloudKit (for when videos are already loaded)
+    /// This is a public method that can be called when needed (e.g., returning from background)
+    func loadVideoStatuses() async {
+        // Only load if we don't have statuses cached or if videos exist
+        guard !allVideos.isEmpty else {
+            appLog("No videos to load statuses for", category: .cloudKit, level: .debug)
+            return
+        }
+        
+        // Don't reload if we already have a recent status cache
+        guard videoStatusCache.isEmpty else {
+            appLog("Video statuses already cached, skipping reload", category: .cloudKit, level: .debug)
+            return
+        }
+        
+        await loadVideoStatusesInBackground()
     }
     
     /// Marks a video as watched
