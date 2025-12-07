@@ -27,7 +27,7 @@
 		100000016 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000016 /* VideoRowView.swift */; };
 		100000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000017 /* Assets.xcassets */; };
 		100000018 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
-		5780A3C556A9B4585B9286B8 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB4750CB9204CDBBEF69881C /* HubServerService.swift */; };
+		E1B0B1E12EE63B2F00AF77A6 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,7 +54,7 @@
 		200000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000019 /* MeTube.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
 		200000020 /* YouTubeStreamExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
-		DB4750CB9204CDBBEF69881C /* HubServerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HubServerService.swift; path = Services/HubServerService.swift; sourceTree = "<group>"; };
+		E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubServerService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,7 +141,7 @@
 				200000007 /* CloudKitService.swift */,
 				200000008 /* AuthenticationManager.swift */,
 				200000020 /* YouTubeStreamExtractor.swift */,
-				DB4750CB9204CDBBEF69881C /* HubServerService.swift */,
+				E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -198,7 +198,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					500000001 = {
 						CreatedOnToolsVersion = 15.0;
@@ -247,6 +247,7 @@
 				100000006 /* YouTubeService.swift in Sources */,
 				100000007 /* CloudKitService.swift in Sources */,
 				100000008 /* AuthenticationManager.swift in Sources */,
+				E1B0B1E12EE63B2F00AF77A6 /* HubServerService.swift in Sources */,
 				100000018 /* YouTubeStreamExtractor.swift in Sources */,
 				0673A8962EE3044800C31341 /* Logger.swift in Sources */,
 				100000009 /* FeedViewModel.swift in Sources */,
@@ -258,7 +259,6 @@
 				100000014 /* ChannelDetailView.swift in Sources */,
 				100000015 /* VideoPlayerView.swift in Sources */,
 				100000016 /* VideoRowView.swift in Sources */,
-				5780A3C556A9B4585B9286B8 /* HubServerService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +300,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -323,6 +324,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -363,6 +365,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -379,6 +382,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -392,7 +396,6 @@
 				CODE_SIGN_ENTITLEMENTS = MeTube/MeTube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MeTube/Info.plist;
@@ -427,7 +430,6 @@
 				CODE_SIGN_ENTITLEMENTS = MeTube/MeTube.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = W65292CD8T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MeTube/Info.plist;
