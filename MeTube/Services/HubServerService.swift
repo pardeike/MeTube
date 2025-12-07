@@ -21,6 +21,10 @@ enum HubConfig {
     
     /// User ID key in UserDefaults
     static let userIdKey = "hubUserId"
+    
+    /// Retry configuration
+    static let maxRetries = 3
+    static let baseRetryDelay: TimeInterval = 1.0 // Base delay in seconds for exponential backoff
 }
 
 // MARK: - Hub Errors
@@ -279,10 +283,10 @@ final class HubServerService: Sendable {
     
     /// Executes an operation with retry logic and exponential backoff
     /// - Parameters:
-    ///   - maxRetries: Maximum number of retry attempts
+    ///   - maxRetries: Maximum number of retry attempts (defaults to HubConfig.maxRetries)
     ///   - operation: The async operation to retry
     func fetchWithRetry<T>(
-        maxRetries: Int = 3,
+        maxRetries: Int = HubConfig.maxRetries,
         operation: @escaping () async throws -> T
     ) async throws -> T {
         var lastError: Error?
@@ -294,7 +298,7 @@ final class HubServerService: Sendable {
                 lastError = error
                 
                 if attempt < maxRetries - 1 {
-                    let delay = pow(2.0, Double(attempt)) // 1s, 2s, 4s
+                    let delay = HubConfig.baseRetryDelay * pow(2.0, Double(attempt)) // 1s, 2s, 4s
                     appLog("Retry attempt \(attempt + 1) after \(delay)s delay", category: .feed, level: .warning)
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 }
