@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		0673A8962EE3044800C31341 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
 		0673A8982EE30C8400C31341 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8972EE30C8400C31341 /* AppSettings.swift */; };
-		100000018 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
 		100000001 /* MeTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000001 /* MeTubeApp.swift */; };
 		100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000002 /* ContentView.swift */; };
 		100000003 /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000003 /* Channel.swift */; };
@@ -27,6 +26,8 @@
 		100000015 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000015 /* VideoPlayerView.swift */; };
 		100000016 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000016 /* VideoRowView.swift */; };
 		100000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000017 /* Assets.xcassets */; };
+		100000018 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
+		5780A3C556A9B4585B9286B8 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB4750CB9204CDBBEF69881C /* HubServerService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +54,7 @@
 		200000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000019 /* MeTube.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
 		200000020 /* YouTubeStreamExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
+		DB4750CB9204CDBBEF69881C /* HubServerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HubServerService.swift; path = Services/HubServerService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +141,7 @@
 				200000007 /* CloudKitService.swift */,
 				200000008 /* AuthenticationManager.swift */,
 				200000020 /* YouTubeStreamExtractor.swift */,
+				DB4750CB9204CDBBEF69881C /* HubServerService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -255,6 +258,7 @@
 				100000014 /* ChannelDetailView.swift in Sources */,
 				100000015 /* VideoPlayerView.swift in Sources */,
 				100000016 /* VideoRowView.swift in Sources */,
+				5780A3C556A9B4585B9286B8 /* HubServerService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
