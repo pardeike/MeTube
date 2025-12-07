@@ -402,7 +402,7 @@ class FeedViewModel: ObservableObject {
                 appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
             }
             
-            // 6. Convert VideoDTO to Video model with channel info
+            // 7. Convert VideoDTO to Video model with channel info
             var newVideos: [Video] = []
             var newCount = 0
             
