@@ -25,10 +25,9 @@ struct MeTubeApp: App {
                 // Schedule background refresh when app enters background
                 feedViewModel.scheduleBackgroundRefresh()
             case .active:
-                // Check if we need to refresh when app becomes active
-                Task {
-                    await feedViewModel.loadVideoStatuses()
-                }
+                // Video statuses are automatically loaded in background during startup
+                // and kept in cache, so no need to reload on every scene activation
+                break
             default:
                 break
             }
