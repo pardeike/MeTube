@@ -76,7 +76,8 @@ final class YouTubeStreamExtractor {
     
     /// YouTube iOS client version - may need periodic updates when YouTube changes their API.
     /// Check https://www.apkmirror.com/apk/google-inc/youtube/ for latest versions.
-    private let clientVersion = "19.29.1"
+    /// Updated to 19.50.7 (December 2025)
+    private let clientVersion = "19.50.7"
     
     init() {
         appLog("YouTubeStreamExtractor initialized", category: .player, level: .info)
@@ -110,12 +111,31 @@ final class YouTubeStreamExtractor {
             appLog("Video info extraction failed: \(error)", category: .player, level: .warning)
         }
         
+        // Try WEB client as final fallback
+        do {
+            let url = try await extractViaInnertubeWebClient(videoId: videoId)
+            appLog("Successfully extracted stream via Web client", category: .player, level: .success)
+            return url
+        } catch {
+            appLog("Web client extraction failed: \(error)", category: .player, level: .warning)
+        }
+        
         throw StreamExtractionError.extractionFailed
     }
     
-    /// Extract stream URL using YouTube's Innertube API
+    /// Extract stream URL using YouTube's Innertube API with iOS client
     private func extractViaInnertubeAPI(videoId: String) async throws -> URL {
-        appLog("extractViaInnertubeAPI starting for: \(videoId)", category: .player, level: .debug)
+        return try await extractViaInnertubeAPI(videoId: videoId, clientType: "IOS")
+    }
+    
+    /// Extract stream URL using YouTube's Innertube API with WEB client (fallback)
+    private func extractViaInnertubeWebClient(videoId: String) async throws -> URL {
+        return try await extractViaInnertubeAPI(videoId: videoId, clientType: "WEB")
+    }
+    
+    /// Extract stream URL using YouTube's Innertube API with specified client type
+    private func extractViaInnertubeAPI(videoId: String, clientType: String) async throws -> URL {
+        appLog("extractViaInnertubeAPI starting for: \(videoId) with client: \(clientType)", category: .player, level: .debug)
         let apiURL = URL(string: "https://www.youtube.com/youtubei/v1/player")!
         
         var request = URLRequest(url: apiURL)
@@ -128,25 +148,32 @@ final class YouTubeStreamExtractor {
         let osVersion = UIDevice.current.systemVersion
         appLog("Device info: model=\(deviceModel), OS=\(osVersion)", category: .player, level: .debug)
         
-        // Calculate a signature timestamp based on current date (days since epoch)
+        // Calculate a signature timestamp for player verification
         let signatureTimestamp = calculateSignatureTimestamp()
         appLog("Signature timestamp: \(signatureTimestamp)", category: .player, level: .debug)
         
-        // Innertube client context for iOS
+        // Build client context based on client type
+        var clientContext: [String: Any] = [
+            "clientName": clientType,
+            "clientVersion": clientType == "WEB" ? "2.20231219.04.00" : clientVersion,
+            "hl": "en",
+            "gl": "US"
+        ]
+        
+        // Add mobile-specific parameters for iOS client
+        if clientType == "IOS" {
+            clientContext["deviceMake"] = "Apple"
+            clientContext["deviceModel"] = deviceModel
+            clientContext["platform"] = "MOBILE"
+            clientContext["osName"] = "iOS"
+            clientContext["osVersion"] = osVersion
+        }
+        
+        // Innertube client context
         let requestBody: [String: Any] = [
             "videoId": videoId,
             "context": [
-                "client": [
-                    "clientName": "IOS",
-                    "clientVersion": clientVersion,
-                    "deviceMake": "Apple",
-                    "deviceModel": deviceModel,
-                    "platform": "MOBILE",
-                    "osName": "iOS",
-                    "osVersion": osVersion,
-                    "hl": "en",
-                    "gl": "US"
-                ]
+                "client": clientContext
             ],
             "playbackContext": [
                 "contentPlaybackContext": [
@@ -194,11 +221,15 @@ final class YouTubeStreamExtractor {
         return identifier.isEmpty ? "iPhone" : identifier
     }
     
-    /// Calculate a signature timestamp (days since Unix epoch)
-    private func calculateSignatureTimestamp() -> String {
-        // YouTube uses approximate days since Unix epoch for signature timestamps
-        let daysSinceEpoch = Int(Date().timeIntervalSince1970 / 86400)
-        return String(daysSinceEpoch)
+    /// Calculate a signature timestamp (seconds-based value for signature verification)
+    /// YouTube's signatureTimestamp is related to the player JavaScript version
+    /// This uses an approximate value that should work for recent YouTube versions
+    private func calculateSignatureTimestamp() -> Int {
+        // YouTube's signatureTimestamp is typically in the range of 19000-20000+ for recent versions
+        // It's based on the player version, not the current time
+        // As a fallback, we use a value that corresponds to recent player versions (late 2025)
+        // This may need periodic updates when YouTube updates their player significantly
+        return 20200 // Approximate value for late 2025 player versions
     }
     
     /// Extract stream URL using the video info endpoint (fallback)
