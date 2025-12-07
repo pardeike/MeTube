@@ -13,16 +13,6 @@ import BackgroundTasks
 
 /// Configuration constants for the feed
 enum FeedConfig {
-    /// Set to true to disable YouTube API calls for video discovery (uses CloudKit cache only)
-    /// This helps avoid hitting API quota limits during testing
-    /// NOTE: With hub server integration, quota usage is minimal (only for fetching subscriptions)
-    /// NOTE: Only enabled in DEBUG builds
-    #if DEBUG
-    static let disableVideoAPIFetching = false // Changed to false since hub server handles video fetching
-    #else
-    static let disableVideoAPIFetching = false
-    #endif
-    
     /// Background task identifier
     static let backgroundTaskIdentifier = "com.metube.app.refresh"
     
@@ -38,7 +28,6 @@ enum FeedConfig {
     
     /// Warning threshold (80% of quota)
     static let quotaWarningThreshold = 8000
-    
 }
 
 // MARK: - Loading State
@@ -544,21 +533,8 @@ class FeedViewModel: ObservableObject {
             "hasVideos": !allVideos.isEmpty,
             "hasChannels": !channels.isEmpty,
             "videoCount": allVideos.count,
-            "channelCount": channels.count,
-            "apiDisabled": FeedConfig.disableVideoAPIFetching
+            "channelCount": channels.count
         ])
-        
-        // Check if API fetching is disabled (for quota preservation during testing)
-        if FeedConfig.disableVideoAPIFetching {
-            appLog("Video API fetching is DISABLED - using CloudKit cache only", category: .feed, level: .warning)
-            // Just ensure we have CloudKit data loaded
-            if allVideos.isEmpty {
-                appLog("No cached videos - attempting to load from CloudKit", category: .feed, level: .info)
-                // Trigger a cache reload
-                loadCachedData()
-            }
-            return
-        }
         
         if allVideos.isEmpty || channels.isEmpty {
             appLog("No cached data - will do full refresh", category: .feed, level: .info)
@@ -571,16 +547,7 @@ class FeedViewModel: ObservableObject {
     
     /// Forces a full refresh regardless of existing data
     func forceFullRefresh(accessToken: String) async {
-        appLog("Force full refresh requested", category: .feed, level: .info, context: [
-            "apiDisabled": FeedConfig.disableVideoAPIFetching
-        ])
-        
-        // Check if API fetching is disabled
-        if FeedConfig.disableVideoAPIFetching {
-            appLog("Video API fetching is DISABLED - skipping full refresh", category: .feed, level: .warning)
-            return
-        }
-        
+        appLog("Force full refresh requested", category: .feed, level: .info)
         await fullRefresh(accessToken: accessToken)
     }
     
