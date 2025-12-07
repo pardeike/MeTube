@@ -53,7 +53,7 @@ MeTube is designed as a distraction-free YouTube client focused solely on subscr
 
 ## Architecture
 
-The app follows MVVM (Model-View-ViewModel) architecture:
+The app follows MVVM (Model-View-ViewModel) architecture with a hub server for efficient data fetching:
 
 ```
 MeTube/
@@ -76,7 +76,8 @@ MeTube/
 │   └── Components/
 │       └── VideoRowView.swift  # Video list item
 └── Services/
-    ├── YouTubeService.swift       # YouTube API client
+    ├── HubServerService.swift     # MeTube Hub Server client
+    ├── YouTubeService.swift       # YouTube API client (subscriptions only)
     ├── CloudKitService.swift      # CloudKit operations
     └── AuthenticationManager.swift # OAuth handling
 ```
@@ -85,9 +86,20 @@ MeTube/
 
 1. **Authentication**: OAuth 2.0 flow with Google for YouTube API access
 2. **Subscriptions**: Fetches subscribed channels via YouTube Data API
-3. **Videos**: For each channel, fetches recent uploads (excluding Shorts)
-4. **Status Sync**: Watch/skip status stored in CloudKit private database
-5. **Playback**: Videos embedded via YouTube iframe with AirPlay support
+3. **Channel Registration**: Registers user's channels with MeTube Hub Server
+4. **Videos**: Fetches aggregated video feed from Hub Server (no direct API calls per channel)
+5. **Status Sync**: Watch/skip status stored in CloudKit private database
+6. **Playback**: Videos embedded via YouTube iframe with AirPlay support
+
+## Hub Server Integration
+
+The app uses the [MeTube Hub Server](https://github.com/pardeike/MeTubeServer) to minimize YouTube API quota usage:
+- Server subscribes to YouTube WebSub for real-time updates
+- Shared video cache across all users
+- App only fetches subscriptions from YouTube (~2-3 API calls)
+- All video metadata comes from the hub server (0 API calls)
+
+See [SERVER_INTEGRATION.md](SERVER_INTEGRATION.md) for technical details.
 
 ## Privacy
 
@@ -98,10 +110,11 @@ MeTube/
 
 ## API Quota
 
-The app uses efficient API calls to stay within YouTube's daily quota:
-- Subscriptions: ~1 unit per 50 channels
-- Playlist items: ~1 unit per 5 videos
-- Video details: ~1 unit per 50 videos
+With the hub server integration, YouTube API quota usage is minimal:
+- **Before**: 100+ API calls per refresh (1 per channel + video details)
+- **After**: 2-3 API calls per refresh (only for fetching subscriptions)
+- Hub server handles all video fetching with YouTube WebSub push notifications
+- See [SERVER_INTEGRATION.md](SERVER_INTEGRATION.md) for architecture details
 
 ## License
 
