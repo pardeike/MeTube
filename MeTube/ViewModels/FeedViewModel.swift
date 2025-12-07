@@ -252,11 +252,7 @@ class FeedViewModel: ObservableObject {
                 
                 // Load video statuses in the background without blocking the UI
                 // This allows users to see and interact with videos immediately
-                // Cancel any existing status load task
-                loadStatusTask?.cancel()
-                loadStatusTask = Task {
-                    await loadVideoStatusesInBackground()
-                }
+                startBackgroundStatusLoad()
             } else {
                 appLog("No cached videos found in CloudKit", category: .cloudKit, level: .info)
             }
@@ -393,16 +389,7 @@ class FeedViewModel: ObservableObject {
                 } else {
                     // Load statuses in background without blocking UI since we have videos to show
                     appLog("Loading video statuses from CloudKit (background)", category: .cloudKit, level: .info)
-                    // Cancel any existing status load task
-                    loadStatusTask?.cancel()
-                    loadStatusTask = Task {
-                        do {
-                            videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-                            appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit in background", category: .cloudKit, level: .success)
-                        } catch {
-                            appLog("Error loading video statuses in background: \(error)", category: .cloudKit, level: .error)
-                        }
-                    }
+                    startBackgroundStatusLoad()
                 }
             } else {
                 appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
@@ -582,6 +569,15 @@ class FeedViewModel: ObservableObject {
     func forceFullRefresh(accessToken: String) async {
         appLog("Force full refresh requested", category: .feed, level: .info)
         await fullRefresh(accessToken: accessToken)
+    }
+    
+    /// Starts background loading of video statuses
+    /// Cancels any existing status load task before starting a new one
+    private func startBackgroundStatusLoad() {
+        loadStatusTask?.cancel()
+        loadStatusTask = Task {
+            await loadVideoStatusesInBackground()
+        }
     }
     
     /// Loads video statuses in the background without blocking the UI
