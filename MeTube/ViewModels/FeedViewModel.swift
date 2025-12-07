@@ -15,18 +15,13 @@ import BackgroundTasks
 enum FeedConfig {
     /// Set to true to disable YouTube API calls for video discovery (uses CloudKit cache only)
     /// This helps avoid hitting API quota limits during testing
+    /// NOTE: With hub server integration, quota usage is minimal (only for fetching subscriptions)
     /// NOTE: Only enabled in DEBUG builds
     #if DEBUG
-    static let disableVideoAPIFetching = true
+    static let disableVideoAPIFetching = false // Changed to false since hub server handles video fetching
     #else
     static let disableVideoAPIFetching = false
     #endif
-    
-    /// Number of videos to fetch per channel on refresh
-    static let videosPerChannel = 20
-    
-    /// Number of videos to fetch per channel on incremental refresh
-    static let videosPerChannelIncremental = 5
     
     /// Background task identifier
     static let backgroundTaskIdentifier = "com.metube.app.refresh"
@@ -38,6 +33,7 @@ enum FeedConfig {
     static let fullRefreshInterval: TimeInterval = 24 * 60 * 60
     
     /// Daily quota limit (YouTube default is 10,000)
+    /// Note: With hub server, we only use quota for fetching user's subscriptions (~2-3 calls)
     static let dailyQuotaLimit = 10000
     
     /// Warning threshold (80% of quota)
@@ -153,6 +149,8 @@ class FeedViewModel: ObservableObject {
     
     private let youtubeService = YouTubeService()
     private let cloudKitService = CloudKitService()
+    private let hubServerService = HubServerService()
+    private let hubUserId = HubServerService.getUserId()
     
     // MARK: - Cache
     
@@ -315,34 +313,42 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Public Methods
     
-    /// Performs a full refresh of the feed (subscriptions and all videos)
+    /// Performs a full refresh of the feed using the MeTube Hub Server
+    /// This reduces API quota usage by fetching from the server instead of YouTube directly
     /// Use this on first launch or when user explicitly requests full refresh
     func fullRefresh(accessToken: String) async {
-        appLog("Starting full refresh", category: .feed, level: .info)
-        
-        guard !quotaInfo.isExceeded else {
-            appLog("Full refresh blocked - quota exceeded", category: .feed, level: .warning)
-            error = "API quota exceeded. Quota resets at midnight Pacific Time."
-            return
-        }
+        appLog("Starting full refresh via hub server", category: .feed, level: .info)
         
         loadingState = .loadingSubscriptions(progress: "")
         error = nil
         newVideosCount = 0
         
         do {
-            // 1. Fetch all subscriptions with pagination
-            appLog("Fetching subscriptions", category: .youtube, level: .info)
-            loadingState = .loadingSubscriptions(progress: "Fetching channels...")
+            // 1. Check hub server health
+            appLog("Checking hub server health", category: .feed, level: .info)
+            loadingState = .loadingSubscriptions(progress: "Connecting to server...")
+            let health = try await hubServerService.checkHealth()
+            appLog("Hub server healthy - \(health.stats.channels) channels, \(health.stats.videos) videos", category: .feed, level: .success)
+            
+            // 2. Fetch user's subscribed channels from YouTube (still need OAuth for this)
+            appLog("Fetching subscriptions from YouTube", category: .youtube, level: .info)
+            loadingState = .loadingSubscriptions(progress: "Fetching your channels...")
             let fetchedChannels = try await youtubeService.fetchSubscriptions(accessToken: accessToken)
             channels = fetchedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
-            appLog("Fetched \(channels.count) channels", category: .youtube, level: .success)
+            appLog("Fetched \(channels.count) channels from YouTube", category: .youtube, level: .success)
             
-            // Estimate quota: ~1 per 50 subscriptions + 1 per channel for uploads playlist
+            // Small quota usage for fetching subscriptions only (no video fetching)
             let subscriptionQuota = (channels.count / 50) + 1 + (channels.count / 50) + 1
             addQuotaUsage(subscriptionQuota)
             
-            // 2. Load existing video statuses from CloudKit
+            // 3. Register channels with hub server
+            appLog("Registering channels with hub server", category: .feed, level: .info)
+            loadingState = .loadingSubscriptions(progress: "Registering channels with server...")
+            let channelIds = channels.map { $0.id }
+            try await hubServerService.registerChannels(userId: hubUserId, channelIds: channelIds)
+            appLog("Registered \(channelIds.count) channels with hub server", category: .feed, level: .success)
+            
+            // 4. Load existing video statuses from CloudKit
             appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
             loadingState = .loadingStatuses
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
@@ -351,72 +357,44 @@ class FeedViewModel: ObservableObject {
             // Store existing video IDs for comparison
             existingVideoIds = Set(allVideos.map { $0.id })
             
-            // 3. Fetch videos from all channels with progress tracking
-            appLog("Fetching videos from \(channels.count) channels", category: .youtube, level: .info)
+            // 5. Fetch videos from hub server (no individual API calls!)
+            appLog("Fetching videos from hub server", category: .feed, level: .info)
+            loadingState = .loadingVideos(channelIndex: 1, totalChannels: 1, channelName: "Loading from server...")
+            let feedResponse = try await hubServerService.fetchFeed(userId: hubUserId, limit: 200)
+            appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
+            
+            // 6. Convert VideoDTO to Video model with channel info
             var newVideos: [Video] = []
-            var channelIndex = 0
-            let totalChannels = channels.count
-            
-            // Process channels in batches to show progress and manage quota
-            let batchSize = 10
-            for batchStart in stride(from: 0, to: channels.count, by: batchSize) {
-                let batchEnd = min(batchStart + batchSize, channels.count)
-                let batch = Array(channels[batchStart..<batchEnd])
-                
-                appLog("Processing batch \(batchStart/batchSize + 1): channels \(batchStart+1)-\(batchEnd)", category: .feed, level: .debug)
-                
-                await withTaskGroup(of: (Int, [Video]).self) { group in
-                    for (index, channel) in batch.enumerated() {
-                        let absoluteIndex = batchStart + index
-                        group.addTask { [youtubeService] in
-                            do {
-                                let videos = try await youtubeService.fetchChannelVideos(
-                                    channel: channel,
-                                    accessToken: accessToken,
-                                    maxResults: FeedConfig.videosPerChannel
-                                )
-                                return (absoluteIndex, videos)
-                            } catch {
-                                appLog("Error fetching videos for \(channel.name): \(error)", category: .youtube, level: .error)
-                                return (absoluteIndex, [])
-                            }
-                        }
-                    }
-                    
-                    for await (index, videos) in group {
-                        channelIndex = max(channelIndex, index + 1)
-                        loadingState = .loadingVideos(
-                            channelIndex: channelIndex,
-                            totalChannels: totalChannels,
-                            channelName: channels[min(index, channels.count - 1)].name
-                        )
-                        newVideos.append(contentsOf: videos)
-                    }
-                }
-                
-                // Estimate quota: ~1 per playlist fetch + 1 per 50 videos for duration
-                let batchQuota = batch.count + (newVideos.count / 50) + 1
-                addQuotaUsage(batchQuota)
-                
-                // Check quota after each batch
-                if quotaInfo.isExceeded {
-                    appLog("Quota exceeded during batch processing", category: .feed, level: .warning)
-                    error = "API quota limit reached. Some channels may not have been loaded."
-                    break
-                }
-            }
-            
-            appLog("Fetched \(newVideos.count) total videos", category: .youtube, level: .success)
-            
-            // 4. Apply cached statuses and count new videos
             var newCount = 0
-            for i in 0..<newVideos.count {
-                if let cachedStatus = videoStatusCache[newVideos[i].id] {
-                    newVideos[i].status = cachedStatus
+            
+            for videoDTO in feedResponse.videos {
+                // Find the channel for this video
+                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                    continue
                 }
-                if !existingVideoIds.contains(newVideos[i].id) {
+                
+                // Skip shorts (videos under 60 seconds)
+                if let duration = videoDTO.duration, duration < 60 {
+                    continue
+                }
+                
+                let video = Video(
+                    id: videoDTO.videoId,
+                    title: videoDTO.title ?? "Untitled",
+                    channelId: videoDTO.channelId,
+                    channelName: channel.name,
+                    publishedDate: videoDTO.publishedAt,
+                    duration: videoDTO.duration ?? 0,
+                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
+                    description: videoDTO.description,
+                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
+                )
+                
+                if !existingVideoIds.contains(video.id) {
                     newCount += 1
                 }
+                
+                newVideos.append(video)
             }
             
             allVideos = newVideos
@@ -428,12 +406,16 @@ class FeedViewModel: ObservableObject {
             appSettings.lastFullRefreshDate = Date()
             saveCachedData()
             
-            appLog("Full refresh completed", category: .feed, level: .success, context: [
+            appLog("Full refresh completed via hub server", category: .feed, level: .success, context: [
                 "totalVideos": allVideos.count,
                 "newVideos": newCount,
                 "channels": channels.count
             ])
             
+        } catch let hubError as HubError {
+            appLog("Hub server error during full refresh: \(hubError)", category: .feed, level: .error)
+            self.error = hubError.errorDescription
+            loadingState = .idle
         } catch let apiError as YouTubeAPIError {
             appLog("YouTube API error during full refresh: \(apiError)", category: .youtube, level: .error)
             handleAPIError(apiError)
@@ -445,19 +427,13 @@ class FeedViewModel: ObservableObject {
         }
     }
     
-    /// Performs an incremental refresh - only fetches recent videos to find new content
-    /// More quota-efficient than full refresh
+    /// Performs an incremental refresh - fetches only recent videos from hub server
+    /// More efficient than full refresh as it uses the 'since' parameter
     func incrementalRefresh(accessToken: String) async {
-        appLog("Starting incremental refresh", category: .feed, level: .info, context: [
+        appLog("Starting incremental refresh via hub server", category: .feed, level: .info, context: [
             "cachedChannels": channels.count,
             "cachedVideos": allVideos.count
         ])
-        
-        guard !quotaInfo.isExceeded else {
-            appLog("Incremental refresh blocked - quota exceeded", category: .feed, level: .warning)
-            error = "API quota exceeded. Quota resets at midnight Pacific Time."
-            return
-        }
         
         // If we have no data, do a full refresh
         guard !channels.isEmpty else {
@@ -473,7 +449,7 @@ class FeedViewModel: ObservableObject {
             return
         }
         
-        appLog("Proceeding with incremental refresh for \(channels.count) channels", category: .feed, level: .info)
+        appLog("Proceeding with incremental refresh via hub server", category: .feed, level: .info)
         loadingState = .refreshing
         error = nil
         newVideosCount = 0
@@ -483,52 +459,50 @@ class FeedViewModel: ObservableObject {
             existingVideoIds = Set(allVideos.map { $0.id })
             appLog("Existing video IDs count: \(existingVideoIds.count)", category: .feed, level: .debug)
             
-            // Fetch only recent videos from each channel
-            var newVideos: [Video] = []
-            
-            await withTaskGroup(of: [Video].self) { group in
-                for channel in channels {
-                    group.addTask { [youtubeService] in
-                        do {
-                            return try await youtubeService.fetchChannelVideos(
-                                channel: channel,
-                                accessToken: accessToken,
-                                maxResults: FeedConfig.videosPerChannelIncremental
-                            )
-                        } catch {
-                            appLog("Error fetching videos for \(channel.name): \(error)", category: .youtube, level: .error)
-                            return []
-                        }
-                    }
-                }
-                
-                for await videos in group {
-                    newVideos.append(contentsOf: videos)
-                }
-            }
-            
-            appLog("Fetched \(newVideos.count) videos in incremental refresh", category: .youtube, level: .info)
-            
-            // Estimate and track quota
-            let quotaUsed = channels.count + (newVideos.count / 50) + 1
-            addQuotaUsage(quotaUsed)
+            // Fetch only recent videos from hub server using 'since' parameter
+            let sinceDate = lastRefreshDate ?? Date.distantPast
+            appLog("Fetching videos since \(sinceDate)", category: .feed, level: .info)
+            let feedResponse = try await hubServerService.fetchFeed(
+                userId: hubUserId,
+                since: sinceDate,
+                limit: 100
+            )
+            appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
             
             // Load video statuses
             appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
             videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
             appLog("Loaded \(videoStatusCache.count) video statuses", category: .cloudKit, level: .success)
             
-            // Merge new videos with existing, avoiding duplicates
+            // Convert VideoDTO to Video model and merge with existing
             var videoDict: [String: Video] = [:]
             for video in allVideos {
                 videoDict[video.id] = video
             }
             
             var newCount = 0
-            for var video in newVideos {
-                if let cachedStatus = videoStatusCache[video.id] {
-                    video.status = cachedStatus
+            for videoDTO in feedResponse.videos {
+                // Find the channel for this video
+                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                    continue
                 }
+                
+                // Skip shorts (videos under 60 seconds)
+                if let duration = videoDTO.duration, duration < 60 {
+                    continue
+                }
+                
+                let video = Video(
+                    id: videoDTO.videoId,
+                    title: videoDTO.title ?? "Untitled",
+                    channelId: videoDTO.channelId,
+                    channelName: channel.name,
+                    publishedDate: videoDTO.publishedAt,
+                    duration: videoDTO.duration ?? 0,
+                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
+                    description: videoDTO.description,
+                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
+                )
                 
                 if videoDict[video.id] == nil {
                     newCount += 1
@@ -544,11 +518,15 @@ class FeedViewModel: ObservableObject {
             lastRefreshDate = Date()
             saveCachedData()
             
-            appLog("Incremental refresh completed", category: .feed, level: .success, context: [
+            appLog("Incremental refresh completed via hub server", category: .feed, level: .success, context: [
                 "totalVideos": allVideos.count,
                 "newVideos": newCount
             ])
             
+        } catch let hubError as HubError {
+            appLog("Hub server error during incremental refresh: \(hubError)", category: .feed, level: .error)
+            self.error = hubError.errorDescription
+            loadingState = .idle
         } catch let apiError as YouTubeAPIError {
             appLog("YouTube API error during incremental refresh: \(apiError)", category: .youtube, level: .error)
             handleAPIError(apiError)
@@ -752,56 +730,69 @@ class FeedViewModel: ObservableObject {
     }
     
     /// Performs a background refresh (called from background task handler)
+    /// Uses hub server to fetch only very recent videos
     func performBackgroundRefresh(accessToken: String) async -> Bool {
-        guard !quotaInfo.isExceeded else {
-            return false
-        }
+        appLog("Starting background refresh via hub server", category: .feed, level: .info)
         
         loadingState = .backgroundRefreshing
         
-        // Only fetch very recent videos in background
-        var newVideos: [Video] = []
-
-        await withTaskGroup(of: [Video].self) { group in
-            for channel in channels {
-                group.addTask { [youtubeService] in
-                    do {
-                        return try await youtubeService.fetchChannelVideos(
-                            channel: channel,
-                            accessToken: accessToken,
-                            maxResults: 3 // Very limited in background
-                        )
-                    } catch {
-                        return []
-                    }
+        do {
+            // Fetch only very recent videos from hub server (last hour)
+            let oneHourAgo = Date().addingTimeInterval(-3600)
+            let feedResponse = try await hubServerService.fetchFeed(
+                userId: hubUserId,
+                since: oneHourAgo,
+                limit: 20
+            )
+            
+            // Merge new videos
+            let existingIds = Set(allVideos.map { $0.id })
+            var newCount = 0
+            
+            for videoDTO in feedResponse.videos {
+                // Skip if we already have this video
+                if existingIds.contains(videoDTO.videoId) {
+                    continue
                 }
-            }
-
-            for await videos in group {
-                newVideos.append(contentsOf: videos)
-            }
-        }
-
-        // Merge new videos
-        let existingIds = Set(allVideos.map { $0.id })
-        var newCount = 0
-
-        for var video in newVideos {
-            if let cachedStatus = videoStatusCache[video.id] {
-                video.status = cachedStatus
-            }
-
-            if !existingIds.contains(video.id) {
+                
+                // Find the channel for this video
+                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                    continue
+                }
+                
+                // Skip shorts
+                if let duration = videoDTO.duration, duration < 60 {
+                    continue
+                }
+                
+                let video = Video(
+                    id: videoDTO.videoId,
+                    title: videoDTO.title ?? "Untitled",
+                    channelId: videoDTO.channelId,
+                    channelName: channel.name,
+                    publishedDate: videoDTO.publishedAt,
+                    duration: videoDTO.duration ?? 0,
+                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
+                    description: videoDTO.description,
+                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
+                )
+                
                 allVideos.append(video)
                 newCount += 1
             }
+            
+            newVideosCount += newCount
+            loadingState = .idle
+            lastRefreshDate = Date()
+            saveCachedData()
+            
+            appLog("Background refresh completed - found \(newCount) new videos", category: .feed, level: .success)
+            return newCount > 0
+            
+        } catch {
+            appLog("Background refresh failed: \(error)", category: .feed, level: .error)
+            loadingState = .idle
+            return false
         }
-
-        newVideosCount += newCount
-        loadingState = .idle
-        lastRefreshDate = Date()
-        saveCachedData()
-
-        return newCount > 0
     }
 }
