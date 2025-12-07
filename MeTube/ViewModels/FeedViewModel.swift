@@ -22,6 +22,12 @@ enum FeedConfig {
     /// Interval for forcing a full refresh (24 hours)
     static let fullRefreshInterval: TimeInterval = 24 * 60 * 60
     
+    /// Duration threshold for filtering YouTube Shorts (videos under this duration are excluded)
+    static let shortsDurationThreshold: TimeInterval = 60 // seconds
+    
+    /// Time window for background refresh (fetch videos from last N hours)
+    static let backgroundRefreshWindow: TimeInterval = 3600 // 1 hour
+    
     /// Daily quota limit (YouTube default is 10,000)
     /// Note: With hub server, we only use quota for fetching user's subscriptions (~2-3 calls)
     static let dailyQuotaLimit = 10000
@@ -300,6 +306,34 @@ class FeedViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Helper Methods
+    
+    /// Converts a VideoDTO from the hub server to a Video model
+    /// Returns nil if the video should be filtered (e.g., Shorts, missing channel)
+    private func convertVideoDTO(_ dto: VideoDTO) -> Video? {
+        // Find the channel for this video
+        guard let channel = channels.first(where: { $0.id == dto.channelId }) else {
+            return nil
+        }
+        
+        // Skip shorts (videos under threshold duration)
+        if let duration = dto.duration, duration < FeedConfig.shortsDurationThreshold {
+            return nil
+        }
+        
+        return Video(
+            id: dto.videoId,
+            title: dto.title ?? "Untitled",
+            channelId: dto.channelId,
+            channelName: channel.name,
+            publishedDate: dto.publishedAt,
+            duration: dto.duration ?? 0,
+            thumbnailURL: dto.thumbnailUrl.flatMap { URL(string: $0) },
+            description: dto.description,
+            status: videoStatusCache[dto.videoId] ?? .unwatched
+        )
+    }
+    
     // MARK: - Public Methods
     
     /// Performs a full refresh of the feed using the MeTube Hub Server
@@ -357,27 +391,9 @@ class FeedViewModel: ObservableObject {
             var newCount = 0
             
             for videoDTO in feedResponse.videos {
-                // Find the channel for this video
-                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                guard let video = convertVideoDTO(videoDTO) else {
                     continue
                 }
-                
-                // Skip shorts (videos under 60 seconds)
-                if let duration = videoDTO.duration, duration < 60 {
-                    continue
-                }
-                
-                let video = Video(
-                    id: videoDTO.videoId,
-                    title: videoDTO.title ?? "Untitled",
-                    channelId: videoDTO.channelId,
-                    channelName: channel.name,
-                    publishedDate: videoDTO.publishedAt,
-                    duration: videoDTO.duration ?? 0,
-                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
-                    description: videoDTO.description,
-                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
-                )
                 
                 if !existingVideoIds.contains(video.id) {
                     newCount += 1
@@ -471,27 +487,9 @@ class FeedViewModel: ObservableObject {
             
             var newCount = 0
             for videoDTO in feedResponse.videos {
-                // Find the channel for this video
-                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                guard let video = convertVideoDTO(videoDTO) else {
                     continue
                 }
-                
-                // Skip shorts (videos under 60 seconds)
-                if let duration = videoDTO.duration, duration < 60 {
-                    continue
-                }
-                
-                let video = Video(
-                    id: videoDTO.videoId,
-                    title: videoDTO.title ?? "Untitled",
-                    channelId: videoDTO.channelId,
-                    channelName: channel.name,
-                    publishedDate: videoDTO.publishedAt,
-                    duration: videoDTO.duration ?? 0,
-                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
-                    description: videoDTO.description,
-                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
-                )
                 
                 if videoDict[video.id] == nil {
                     newCount += 1
@@ -704,11 +702,11 @@ class FeedViewModel: ObservableObject {
         loadingState = .backgroundRefreshing
         
         do {
-            // Fetch only very recent videos from hub server (last hour)
-            let oneHourAgo = Date().addingTimeInterval(-3600)
+            // Fetch only very recent videos from hub server
+            let sinceDate = Date().addingTimeInterval(-FeedConfig.backgroundRefreshWindow)
             let feedResponse = try await hubServerService.fetchFeed(
                 userId: hubUserId,
-                since: oneHourAgo,
+                since: sinceDate,
                 limit: 20
             )
             
@@ -722,27 +720,9 @@ class FeedViewModel: ObservableObject {
                     continue
                 }
                 
-                // Find the channel for this video
-                guard let channel = channels.first(where: { $0.id == videoDTO.channelId }) else {
+                guard let video = convertVideoDTO(videoDTO) else {
                     continue
                 }
-                
-                // Skip shorts
-                if let duration = videoDTO.duration, duration < 60 {
-                    continue
-                }
-                
-                let video = Video(
-                    id: videoDTO.videoId,
-                    title: videoDTO.title ?? "Untitled",
-                    channelId: videoDTO.channelId,
-                    channelName: channel.name,
-                    publishedDate: videoDTO.publishedAt,
-                    duration: videoDTO.duration ?? 0,
-                    thumbnailURL: videoDTO.thumbnailUrl.flatMap { URL(string: $0) },
-                    description: videoDTO.description,
-                    status: videoStatusCache[videoDTO.videoId] ?? .unwatched
-                )
                 
                 allVideos.append(video)
                 newCount += 1
