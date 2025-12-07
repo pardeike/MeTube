@@ -79,6 +79,11 @@ final class YouTubeStreamExtractor {
     /// Updated to 19.50.7 (December 2025)
     private let clientVersion = "19.50.7"
     
+    /// Player signature value for YouTube API requests
+    /// This value is based on the YouTube player version and may need updates when YouTube
+    /// significantly updates their player. Typical range: 19000-20000+ for 2024-2025
+    private let playerSignatureValue = 20200
+    
     init() {
         appLog("YouTubeStreamExtractor initialized", category: .player, level: .info)
     }
@@ -149,7 +154,7 @@ final class YouTubeStreamExtractor {
         appLog("Device info: model=\(deviceModel), OS=\(osVersion)", category: .player, level: .debug)
         
         // Calculate a signature timestamp for player verification
-        let signatureTimestamp = calculateSignatureTimestamp()
+        let signatureTimestamp = getPlayerSignatureValue()
         appLog("Signature timestamp: \(signatureTimestamp)", category: .player, level: .debug)
         
         // Build client context based on client type
@@ -221,15 +226,10 @@ final class YouTubeStreamExtractor {
         return identifier.isEmpty ? "iPhone" : identifier
     }
     
-    /// Calculate a signature timestamp (seconds-based value for signature verification)
-    /// YouTube's signatureTimestamp is related to the player JavaScript version
-    /// This uses an approximate value that should work for recent YouTube versions
-    private func calculateSignatureTimestamp() -> Int {
-        // YouTube's signatureTimestamp is typically in the range of 19000-20000+ for recent versions
-        // It's based on the player version, not the current time
-        // As a fallback, we use a value that corresponds to recent player versions (late 2025)
-        // This may need periodic updates when YouTube updates their player significantly
-        return 20200 // Approximate value for late 2025 player versions
+    /// Get the player signature value for YouTube API requests
+    /// Returns a value based on the YouTube player version for signature verification
+    private func getPlayerSignatureValue() -> Int {
+        return playerSignatureValue
     }
     
     /// Extract stream URL using the video info endpoint (fallback)
