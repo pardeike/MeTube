@@ -390,7 +390,7 @@ class FeedViewModel: ObservableObject {
             
             // 5. Fetch videos from hub server (happens in parallel with status loading!)
             appLog("Fetching videos from hub server", category: .feed, level: .info)
-            loadingState = .loadingVideos(channelIndex: 1, totalChannels: 1, channelName: "Loading from server...")
+            loadingState = .loadingStatuses  // Show that we're syncing watch status in parallel
             let feedResponse = try await hubServerService.fetchFeed(userId: hubUserId, limit: 200)
             appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
             
