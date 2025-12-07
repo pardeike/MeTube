@@ -377,24 +377,30 @@ class FeedViewModel: ObservableObject {
             try await hubServerService.registerChannels(userId: hubUserId, channelIds: channelIds)
             appLog("Registered \(channelIds.count) channels with hub server", category: .feed, level: .success)
             
-            // 4. Load existing video statuses from CloudKit if not already cached
-            // Fetch directly without task wrapper to populate cache before converting videos
-            if videoStatusCache.isEmpty {
-                appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
-                videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-                appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
-            } else {
-                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
-            }
+            // 4. Start loading video statuses from CloudKit in parallel with hub server operations
+            let statusTask: Task<[String: VideoStatus], Error>? = videoStatusCache.isEmpty ? Task {
+                appLog("Loading video statuses from CloudKit (parallel)", category: .cloudKit, level: .info)
+                let statuses = try await cloudKitService.fetchAllVideoStatuses()
+                appLog("Loaded \(statuses.count) video statuses from CloudKit", category: .cloudKit, level: .success)
+                return statuses
+            } : nil
             
             // Store existing video IDs for comparison
             existingVideoIds = Set(allVideos.map { $0.id })
             
-            // 5. Fetch videos from hub server (no individual API calls!)
+            // 5. Fetch videos from hub server (happens in parallel with status loading!)
             appLog("Fetching videos from hub server", category: .feed, level: .info)
             loadingState = .loadingVideos(channelIndex: 1, totalChannels: 1, channelName: "Loading from server...")
             let feedResponse = try await hubServerService.fetchFeed(userId: hubUserId, limit: 200)
             appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
+            
+            // 6. Wait for status loading to complete before converting videos
+            if let statusTask = statusTask {
+                videoStatusCache = try await statusTask.value
+                appLog("Using loaded video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
+            } else {
+                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
+            }
             
             // 6. Convert VideoDTO to Video model with channel info
             var newVideos: [Video] = []
