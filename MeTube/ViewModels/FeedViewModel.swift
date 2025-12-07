@@ -378,13 +378,11 @@ class FeedViewModel: ObservableObject {
             appLog("Registered \(channelIds.count) channels with hub server", category: .feed, level: .success)
             
             // 4. Load existing video statuses from CloudKit if not already cached
-            // Load asynchronously to avoid blocking the UI, but wait for completion
-            // before converting videos so they have correct statuses
+            // Fetch directly without task wrapper to populate cache before converting videos
             if videoStatusCache.isEmpty {
-                appLog("Loading video statuses from CloudKit (background)", category: .cloudKit, level: .info)
-                startBackgroundStatusLoad()
-                // Wait for the background task to complete so videoStatusCache is populated
-                await loadStatusTask?.value
+                appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
+                videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
+                appLog("Loaded \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
             } else {
                 appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
             }
