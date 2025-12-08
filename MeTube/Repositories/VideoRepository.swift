@@ -69,7 +69,10 @@ class VideoRepository {
     @discardableResult
     func saveVideo(_ video: VideoEntity) throws -> VideoEntity {
         // Check if video already exists
-        if let existingVideo = try? fetchVideo(byId: video.videoId) {
+        // Don't use try? here - we need to know if the fetch actually failed
+        let existingVideo = try fetchVideo(byId: video.videoId)
+        
+        if let existingVideo = existingVideo {
             // Update existing video
             existingVideo.title = video.title
             existingVideo.videoDescription = video.videoDescription
@@ -122,7 +125,9 @@ class VideoRepository {
         
         var newCount = 0
         for video in uniqueVideos {
-            if (try? fetchVideo(byId: video.videoId)) == nil {
+            // Don't use try? here - we need to know if the fetch actually failed
+            let existingVideo = try fetchVideo(byId: video.videoId)
+            if existingVideo == nil {
                 modelContext.insert(video)
                 newCount += 1
             }

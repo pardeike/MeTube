@@ -95,7 +95,10 @@ class StatusRepository {
     
     /// Save or update a status entity
     func saveStatus(_ status: StatusEntity) throws {
-        if let existingStatus = try? fetchStatus(forVideoId: status.videoId) {
+        // Don't use try? here - we need to know if the fetch actually failed
+        let existingStatus = try fetchStatus(forVideoId: status.videoId)
+        
+        if let existingStatus = existingStatus {
             existingStatus.status = status.status
             existingStatus.lastModified = status.lastModified
             existingStatus.synced = status.synced
