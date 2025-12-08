@@ -29,7 +29,7 @@ enum HubConfig {
 
 // MARK: - Hub Errors
 
-enum HubError: LocalizedError {
+enum HubError: LocalizedError, Equatable {
     case serverUnhealthy
     case registrationFailed
     case fetchFailed
@@ -57,6 +57,24 @@ enum HubError: LocalizedError {
             return "User not found on server. Please re-sync your subscriptions."
         case .invalidURL:
             return "Invalid server URL"
+        }
+    }
+    
+    // Implement Equatable conformance
+    static func == (lhs: HubError, rhs: HubError) -> Bool {
+        switch (lhs, rhs) {
+        case (.serverUnhealthy, .serverUnhealthy),
+             (.registrationFailed, .registrationFailed),
+             (.fetchFailed, .fetchFailed),
+             (.invalidResponse, .invalidResponse),
+             (.userNotFound, .userNotFound),
+             (.invalidURL, .invalidURL):
+            return true
+        case (.networkError(let lhsError), .networkError(let rhsError)),
+             (.decodingError(let lhsError), .decodingError(let rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        default:
+            return false
         }
     }
 }
