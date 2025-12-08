@@ -56,7 +56,7 @@ struct VideoPlayerView: View {
     @State private var controlsTimer: Timer?
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
-    @State private var infoSheetOffset: CGFloat = 0 // 0 = hidden below screen, negative = visible
+    @State private var showingVideoInfo = false
     @State private var currentPlaybackTime: TimeInterval = 0
     @State private var timeObserverToken: Any?
     
@@ -183,17 +183,81 @@ struct VideoPlayerView: View {
                     Spacer()
                 }
                 
-                // Video info sheet overlay (draggable from bottom)
-                VideoInfoSheet(video: video, offset: $infoSheetOffset)
-                    .offset(y: geometry.size.height + infoSheetOffset)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                appLog("Player view tapped - toggling controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls.toggle()
+                // Video info view (simple overlay when shown)
+                if showingVideoInfo {
+                    GeometryReader { geometry in
+                        VStack(spacing: 0) {
+                            // Dismiss button area
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    showingVideoInfo = false
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.white.opacity(0.8))
+                                        .padding()
+                                }
+                            }
+                            
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    // Title
+                                    Text(video.title)
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                    
+                                    // Channel info
+                                    Text(video.channelName)
+                                        .font(.headline)
+                                        .foregroundColor(.white.opacity(0.9))
+                                    
+                                    // Metadata
+                                    HStack(spacing: 12) {
+                                        Label(video.durationString, systemImage: "clock")
+                                        Label(video.relativePublishDate, systemImage: "calendar")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                    
+                                    // Description
+                                    if let description = video.description, !description.isEmpty {
+                                        Divider()
+                                            .background(Color.white.opacity(0.3))
+                                        
+                                        Text("Description")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        Text(description)
+                                            .font(.body)
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+                                }
+                                .padding()
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.95))
+                    }
                 }
-                resetControlsTimer()
+            }
+            .onTapGesture {
+                // Only toggle controls if not showing video info and not tapping on controls
+                if !showingVideoInfo && !showingControls {
+                    appLog("Player view tapped - showing controls", category: .player, level: .debug)
+                    withAnimation {
+                        showingControls = true
+                    }
+                    resetControlsTimer()
+                } else if !showingVideoInfo && showingControls {
+                    // Tapping when controls are visible hides them
+                    appLog("Player view tapped - hiding controls", category: .player, level: .debug)
+                    withAnimation {
+                        showingControls = false
+                    }
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
@@ -207,7 +271,14 @@ struct VideoPlayerView: View {
                 loadVideo()
             }
             .onDisappear {
-                appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info)
+                appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
+                    "videoId": video.id,
+                    "currentPlaybackTime": currentPlaybackTime,
+                    "duration": video.duration
+                ])
+                // Always check if video should be marked as watched when view disappears
+                // This handles both explicit dismiss and system gesture dismiss
+                checkAndMarkWatchedIfNeeded()
                 controlsTimer?.invalidate()
                 cleanupPlayer()
             }
@@ -335,10 +406,13 @@ struct VideoPlayerView: View {
         appLog("Player cleaned up", category: .player, level: .debug)
     }
     
-    /// Dismisses the player view, marking as watched if appropriate
+    /// Dismisses the player view
     private func dismissPlayerView() {
-        checkAndMarkWatchedIfNeeded()
-        cleanupPlayer()
+        appLog("dismissPlayerView() called explicitly", category: .player, level: .info, context: [
+            "videoId": video.id
+        ])
+        // Don't check auto-watch here - it's handled in onDisappear
+        // This ensures auto-watch happens regardless of dismiss method
         onDismiss()
     }
     
@@ -420,8 +494,7 @@ struct VideoPlayerView: View {
             return
         }
         appLog("Swipe left detected - advancing to next video", category: .player, level: .info)
-        // Check if current video should be marked as watched based on playback position
-        checkAndMarkWatchedIfNeeded()
+        // Auto-watch check will happen in onDisappear when view is recreated
         // Switch to next video in-place
         onNextVideo?(next)
     }
@@ -433,8 +506,7 @@ struct VideoPlayerView: View {
             return
         }
         appLog("Swipe right detected - going to previous video", category: .player, level: .info)
-        // Check if current video should be marked as watched based on playback position
-        checkAndMarkWatchedIfNeeded()
+        // Auto-watch check will happen in onDisappear when view is recreated
         // Switch to previous video in-place
         onPreviousVideo?(previous)
     }
