@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CloudKit
 
 /// Status of a video from the user's perspective
 enum VideoStatus: String, Codable, CaseIterable {
@@ -62,50 +61,5 @@ struct Video: Identifiable, Codable, Hashable {
         self.thumbnailURL = thumbnailURL
         self.description = description
         self.status = status
-    }
-    
-    // MARK: - CloudKit Record Conversion
-    
-    static let recordType = "Video"
-    
-    func toRecord() -> CKRecord {
-        let record = CKRecord(recordType: Video.recordType, recordID: CKRecord.ID(recordName: id))
-        record["title"] = title
-        record["channelId"] = channelId
-        record["channelName"] = channelName
-        record["publishedDate"] = publishedDate
-        record["duration"] = duration
-        record["thumbnailURL"] = thumbnailURL?.absoluteString
-        record["description"] = description
-        record["status"] = status.rawValue
-        return record
-    }
-    
-    init?(from record: CKRecord) {
-        guard let title = record["title"] as? String,
-              let channelId = record["channelId"] as? String,
-              let channelName = record["channelName"] as? String,
-              let publishedDate = record["publishedDate"] as? Date,
-              let duration = record["duration"] as? TimeInterval,
-              let statusString = record["status"] as? String,
-              let status = VideoStatus(rawValue: statusString) else {
-            return nil
-        }
-        
-        self.id = record.recordID.recordName
-        self.title = title
-        self.channelId = channelId
-        self.channelName = channelName
-        self.publishedDate = publishedDate
-        self.duration = duration
-        self.status = status
-        
-        if let urlString = record["thumbnailURL"] as? String {
-            self.thumbnailURL = URL(string: urlString)
-        } else {
-            self.thumbnailURL = nil
-        }
-        
-        self.description = record["description"] as? String
     }
 }
