@@ -232,10 +232,12 @@ final class HubServerService: Sendable {
     /// - Parameters:
     ///   - userId: The user's unique ID
     ///   - since: Optional timestamp to fetch only videos published after this date
+    ///   - cursor: Optional pagination cursor for fetching subsequent pages
     ///   - limit: Maximum number of videos to return (default: 50)
-    func fetchFeed(userId: String, since: Date? = nil, limit: Int = 50) async throws -> FeedResponse {
+    func fetchFeed(userId: String, since: Date? = nil, cursor: String? = nil, limit: Int = 50) async throws -> FeedResponse {
         appLog("Fetching feed for user \(userId)", category: .feed, level: .info, context: [
             "since": since?.description ?? "none",
+            "cursor": cursor ?? "none",
             "limit": limit
         ])
         
@@ -249,6 +251,10 @@ final class HubServerService: Sendable {
         if let since = since {
             let iso8601 = ISO8601DateFormatter().string(from: since)
             queryItems.append(URLQueryItem(name: "since", value: iso8601))
+        }
+        
+        if let cursor = cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
         }
         
         queryItems.append(URLQueryItem(name: "limit", value: "\(limit)"))
