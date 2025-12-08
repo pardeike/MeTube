@@ -515,13 +515,23 @@ struct VideoInfoSheet: View {
             .frame(height: sheetHeight)
             .background(Color.black.opacity(0.9))
             .cornerRadius(20, corners: [.topLeft, .topRight])
+            .offset(y: dragOffset) // Apply drag offset during gesture
             .gesture(
                 DragGesture()
                     .onChanged { value in
                         // Allow dragging down (positive) to hide, and dragging up (negative) to show
-                        let newOffset = offset + value.translation.height
+                        let newOffset = value.translation.height
                         // Clamp between fully visible and hidden
-                        dragOffset = max(-sheetHeight, min(0, newOffset))
+                        // When offset is 0 (hidden), can only drag up (negative)
+                        // When offset is -sheetHeight (visible), can drag down (positive) to hide
+                        if offset == 0 {
+                            // Sheet is hidden, allow dragging up to show
+                            dragOffset = min(0, newOffset)
+                        } else {
+                            // Sheet is visible or partially visible
+                            let targetOffset = offset + newOffset
+                            dragOffset = max(offset, min(0, targetOffset)) - offset
+                        }
                     }
                     .onEnded { value in
                         let velocity = value.predictedEndTranslation.height - value.translation.height
