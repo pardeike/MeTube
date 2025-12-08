@@ -22,18 +22,18 @@ final class StatusEntity {
     // MARK: - Core Properties
     
     /// Video ID this status refers to (unique key)
-    @Attribute(.unique) var videoId: String
+    @Attribute(.unique) var videoId: String = ""
     
     /// Current watch status
-    var status: String  // Store as String for SwiftData compatibility
+    var status: String = WatchStatus.unknown.rawValue  // Store as String for SwiftData compatibility
     
     // MARK: - Persistence Metadata
     
     /// When the status was last modified
-    var lastModified: Date
+    var lastModified: Date = Date()
     
     /// Whether the status has been synced to CloudKit
-    var synced: Bool
+    var synced: Bool = false
     
     // MARK: - Computed Property
     

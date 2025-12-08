@@ -15,10 +15,10 @@ final class VideoEntity {
     // MARK: - Core Properties
     
     /// YouTube video ID (unique key)
-    @Attribute(.unique) var videoId: String
+    @Attribute(.unique) var videoId: String = ""
     
     /// Channel that uploaded the video
-    var channelId: String
+    var channelId: String = ""
     
     /// Video title
     var title: String?
@@ -33,18 +33,18 @@ final class VideoEntity {
     var duration: Double?
     
     /// When the video was published on YouTube
-    var publishedAt: Date
+    var publishedAt: Date = Date()
     
     // MARK: - Persistence Metadata
     
     /// When the video was first inserted into local database
-    var insertedAt: Date
+    var insertedAt: Date = Date()
     
     /// When the video metadata was last modified
-    var lastModified: Date
+    var lastModified: Date = Date()
     
     /// Whether the video has been synced with remote services
-    var synced: Bool
+    var synced: Bool = false
     
     // MARK: - Initialization
     

@@ -14,7 +14,7 @@ final class ChannelEntity {
     // MARK: - Core Properties
     
     /// YouTube channel ID (unique key)
-    @Attribute(.unique) var channelId: String
+    @Attribute(.unique) var channelId: String = ""
     
     /// Channel name/title
     var name: String?
@@ -31,13 +31,13 @@ final class ChannelEntity {
     // MARK: - Persistence Metadata
     
     /// When the channel was first inserted into local database
-    var insertedAt: Date
+    var insertedAt: Date = Date()
     
     /// When the channel metadata was last modified
-    var lastModified: Date
+    var lastModified: Date = Date()
     
     /// Whether the channel has been synced with remote services
-    var synced: Bool
+    var synced: Bool = false
     
     // MARK: - Initialization
     
