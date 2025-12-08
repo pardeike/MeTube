@@ -15,7 +15,7 @@ final class VideoEntity {
     // MARK: - Core Properties
     
     /// YouTube video ID (unique key)
-    @Attribute(.unique) var videoId: String = ""
+    var videoId: String = ""
     
     /// Channel that uploaded the video
     var channelId: String = ""

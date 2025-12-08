@@ -14,7 +14,7 @@ final class ChannelEntity {
     // MARK: - Core Properties
     
     /// YouTube channel ID (unique key)
-    @Attribute(.unique) var channelId: String = ""
+    var channelId: String = ""
     
     /// Channel name/title
     var name: String?

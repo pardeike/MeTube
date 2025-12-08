@@ -22,7 +22,7 @@ final class StatusEntity {
     // MARK: - Core Properties
     
     /// Video ID this status refers to (unique key)
-    @Attribute(.unique) var videoId: String = ""
+    var videoId: String = ""
     
     /// Current watch status
     var status: String = WatchStatus.unknown.rawValue  // Store as String for SwiftData compatibility
