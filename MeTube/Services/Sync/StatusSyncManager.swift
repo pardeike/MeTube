@@ -103,19 +103,20 @@ class StatusSyncManager {
     }
     
     /// Perform sync if needed (non-blocking check)
-    func syncIfNeeded() async throws {
+    /// - Returns: Tuple of (pulled: Int, pushed: Int) representing number of statuses synced, or (0, 0) if sync was not needed
+    func syncIfNeeded() async throws -> (pulled: Int, pushed: Int) {
         // Check iCloud availability first
         guard await cloudKitService.checkiCloudStatus() else {
             appLog("iCloud not available, skipping status sync", category: .cloudKit, level: .warning)
-            return
+            return (0, 0)
         }
         
         guard shouldSync() else {
             appLog("Status sync not needed at this time", category: .cloudKit, level: .debug)
-            return
+            return (0, 0)
         }
         
-        try await performSync()
+        return try await performSync()
     }
     
     /// Perform a full sync operation (pull then push)
