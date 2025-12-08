@@ -1,6 +1,8 @@
-# CloudKit Unique Constraint Fix
+# CloudKit Unique Constraint Fix & Sync Improvements
 
-## Problem
+## Problems Fixed
+
+### 1. Launch Failure (NSCocoaErrorDomain Code=134060)
 
 The app was failing to launch with error:
 ```
@@ -10,18 +12,44 @@ The following entities are constrained:
 ChannelEntity: channelId, StatusEntity: videoId, VideoEntity: videoId"
 ```
 
-## Root Cause
+### 2. Channel Registration Timeouts
 
-When a SwiftData app has CloudKit entitlements (which MeTube has for StatusEntity sync), SwiftData automatically enables CloudKit integration for **all entities in the model**. CloudKit has specific restrictions:
+First sync with 216 channels would timeout, leaving user unregistered on hub server and resulting in zero videos.
+
+### 3. User Not Found Errors
+
+After registration timeout, subsequent feed fetches returned `HubError.userNotFound` with no automatic recovery.
+
+### 4. CloudKit Zone Not Found
+
+Status sync failed with "Zone Not Found" because the custom record zone was never created.
+
+### 5. Concurrent Sync Cancellations
+
+Multiple sync tasks running simultaneously caused `NSURLErrorDomain Code=-999` cancellation errors.
+
+## Root Causes
+
+**CloudKit Unique Constraints**: When a SwiftData app has CloudKit entitlements (which MeTube has for StatusEntity sync), SwiftData automatically enables CloudKit integration for **all entities in the model**. CloudKit has specific restrictions:
 
 1. **No unique constraints**: CloudKit does not support `@Attribute(.unique)`
 2. **All properties must be optional or have default values**: CloudKit requires this for sync flexibility
 
-## Solution Applied
+**Hub Sync Issues**: Channel registration and feed fetching lacked retry logic and automatic recovery mechanisms.
+
+**CloudKit Zone**: The app attempted to pull changes from a zone that was never created.
+
+**Concurrency**: No guards prevented overlapping sync operations.
+
+## Solutions Applied
+
+### Part 1: CloudKit Unique Constraints (Commits 646184c, 667c35f)
 
 Removed `@Attribute(.unique)` from all three SwiftData entities:
 
 ### Files Changed
+
+#### CloudKit Constraint Removal
 
 1. **ChannelEntity.swift** (line 17)
    ```swift
@@ -50,15 +78,39 @@ Removed `@Attribute(.unique)` from all three SwiftData entities:
    var videoId: String = ""
    ```
 
+### Part 2: Sync Improvements (Commit ae059f1)
+
+#### HubServerService.swift
+- **Channel Registration Retry**: Wrapped `registerChannels()` method with `fetchWithRetry()` helper for automatic retry with exponential backoff on network timeouts
+
+#### HubSyncManager.swift
+- **Sync Serialization**: Added `isSyncing` flag to prevent concurrent sync operations
+- **Auto Re-registration**: `fetchFeedPage()` now catches `userNotFound` error, fetches channel IDs from local database, re-registers with hub server, and retries feed fetch once
+- **Always Register When Needed**: `performSync()` registers channels if server has 0 channels even when local database has channels
+- **Page Size Reduction**: Reduced `pageLimit` from 200 to 100 for better first-sync reliability
+
+#### StatusSyncManager.swift
+- **Sync Serialization**: Added `isSyncing` flag to prevent concurrent operations
+- **Zone Creation**: Added `ensureZoneExists()` method to check for zone existence before pulling changes
+- **Auto Zone Creation**: Added `createZone()` method that creates the custom CloudKit record zone if it doesn't exist
+- **Enhanced Error Handling**: Improved zone not found error handling in pull operations
+- **Enhanced Error Handling**: Improved zone not found error handling in pull operations
+
 ## Why This Is Safe
 
-Uniqueness is **already enforced at the application level** in the repository layer:
+**Uniqueness**: Already enforced at the application level in the repository layer:
 
 - **ChannelRepository.saveChannel()** (line 47): Checks for existing channel before inserting
 - **VideoRepository.saveVideo()** (line 72): Checks for existing video before inserting
 - **StatusRepository.updateStatus()** (line 65): Checks for existing status before inserting
 
-Each repository uses predicates to query for existing entities by ID and either updates the existing entity or inserts a new one. This approach is more flexible than database-level constraints and aligns with offline-first architecture principles.
+Each repository uses predicates to query for existing entities by ID and either updates the existing entity or inserts a new one.
+
+**Retry Logic**: Uses exponential backoff (1s, 2s, 4s) with max 3 attempts. Preserves all existing logging.
+
+**Sync Serialization**: Single boolean flag check at entry point prevents race conditions without complex locking.
+
+**Zone Creation**: Only creates zone once, subsequent syncs skip creation check. Idempotent operation.
 
 ## CloudKit Requirements Met
 
@@ -126,26 +178,54 @@ xcodebuild -project MeTube.xcodeproj -scheme MeTube \
 - The app should now launch without the NSCocoaErrorDomain error
 
 ### 5. Verify Functionality
-- **Add channels**: Ensure channels can be added without duplicates
-- **Sync videos**: Verify HubSyncManager fetches videos correctly
-- **Mark status**: Test marking videos as watched/skipped
-- **CloudKit sync**: Verify status syncs across devices (if iCloud enabled)
-- **Offline mode**: Test app works offline with cached data
+
+#### Basic Operations
+- **Launch**: App starts without NSCocoaErrorDomain error
+- **OAuth**: User can sign in and tokens persist across launches
+- **Add channels**: Channels can be added without duplicates
+
+#### Hub Sync (First Run with 216 channels)
+- **Registration**: Channel registration completes without timeout (uses retry logic)
+- **Feed Fetch**: Videos appear in feed after registration
+- **Auto Recovery**: If registration times out, app auto re-registers on next feed fetch
+- **No Duplicates**: Videos are deduplicated even with multiple sync attempts
+
+#### CloudKit Status Sync
+- **Zone Creation**: CloudKit zone created automatically on first sync
+- **Status Sync**: Watch/skip status syncs to CloudKit
+- **Cross-Device**: Status appears on other devices (if iCloud enabled)
+- **No Zone Errors**: No "Zone Not Found" errors in logs
+
+#### Concurrency
+- **No Cancellations**: No `NSURLErrorDomain Code=-999` errors
+- **Single Sync**: Multiple sync requests don't cause conflicts
+- **Logs Show Skipping**: Logs show "Sync already in progress, skipping" when appropriate
 
 ## Expected Behavior
 
 ### On Fresh Install
 1. App launches successfully (no CloudKit error)
 2. Empty feed shown with prompt to configure OAuth
-3. After OAuth setup, channels can be subscribed
-4. Videos sync from hub server to local database
-5. Status sync begins in background
+3. After OAuth setup, 216 channels register with retry logic (3 attempts with backoff)
+4. Videos sync from hub server to local database (100 videos per page)
+5. CloudKit zone created automatically
+6. Status sync begins in background
+7. Tokens persist to keychain and CloudKit
 
 ### On Subsequent Launches
-1. Instant feed display from local database
-2. Background sync checks for new videos
-3. Status changes sync to CloudKit
-4. No blocking operations
+1. OAuth tokens load from keychain (no re-login required)
+2. Instant feed display from local database
+3. Background sync checks for new videos (if > 1 hour since last sync)
+4. Status changes sync to CloudKit (if > 5 minutes since last sync)
+5. No concurrent sync operations (serialized by isSyncing flag)
+6. No blocking operations
+
+### After Timeout/Error Recovery
+1. If channel registration times out, user not found error occurs on feed fetch
+2. App automatically fetches channel IDs from local database
+3. Re-registration attempted automatically
+4. Feed fetch retried after successful re-registration
+5. User gets videos without manual intervention
 
 ## References
 
