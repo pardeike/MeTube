@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// Filter options for channel videos
 enum ChannelVideoFilter: String, CaseIterable {

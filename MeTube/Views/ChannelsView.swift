@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
