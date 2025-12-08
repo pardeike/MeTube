@@ -32,6 +32,10 @@ Multiple sync tasks running simultaneously caused `NSURLErrorDomain Code=-999` c
 
 After removing unique constraints, duplicate entities could exist in the database, causing fatal errors when using `Dictionary(uniqueKeysWithValues:)` which requires unique keys.
 
+### 7. Silent Duplicate Creation on Fetch Errors
+
+Repository save methods used `try?` to check if entities exist, silently swallowing fetch errors and creating duplicates when fetch operations failed.
+
 ## Root Causes
 
 **CloudKit Unique Constraints**: When a SwiftData app has CloudKit entitlements (which MeTube has for StatusEntity sync), SwiftData automatically enables CloudKit integration for **all entities in the model**. CloudKit has specific restrictions:
@@ -106,6 +110,13 @@ Removed `@Attribute(.unique)` from all three SwiftData entities:
 
 #### All Repositories
 - **Batch Save Deduplication**: Added input deduplication in `saveChannels()`, `saveVideos()`, `saveStatuses()`, and `mergeVideos()` methods using Set-based filtering to remove duplicate IDs before processing
+
+### Part 4: Proper Error Handling in Save Methods (Commit bdbc9f2)
+
+#### All Repositories
+- **Removed `try?` from fetch operations**: Changed `try? fetchChannel()`, `try? fetchVideo()`, `try? fetchStatus()` to `try` versions in all save methods
+- **Proper error propagation**: Fetch errors now propagate to callers instead of being silently ignored
+- **Prevents silent duplicate creation**: When fetch fails, the save operation throws an error instead of incorrectly assuming entity doesn't exist and creating a duplicate
 
 ## Why This Is Safe
 
