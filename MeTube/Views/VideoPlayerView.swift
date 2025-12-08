@@ -381,7 +381,7 @@ struct VideoPlayerView: View {
     
     /// Handle next video navigation
     private func handleNextVideo() {
-        guard let next = nextVideo else {
+        guard nextVideo != nil else {
             appLog("No next video available", category: .player, level: .debug)
             return
         }

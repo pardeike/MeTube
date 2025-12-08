@@ -268,9 +268,6 @@ class FeedViewModel: ObservableObject {
         newVideosCount = 0
         
         do {
-            // Store existing video count for comparison
-            let existingCount = allVideos.count
-            
             // Perform sync (includes channel registration and feed fetch)
             let newCount = try await hubSyncManager.performSync(accessToken: accessToken)
             newVideosCount = newCount
