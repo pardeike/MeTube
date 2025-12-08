@@ -35,6 +35,12 @@ enum PlayerLoadingState: Equatable {
 private enum VideoPlayerConfig {
     /// Duration in seconds before controls auto-hide
     static let controlsAutoHideDelay: TimeInterval = 4.0
+    
+    /// Minimum distance for swipe gesture recognition (in points)
+    static let minimumSwipeDistance: CGFloat = 50
+    
+    /// Minimum drag distance to dismiss info sheet (in points)
+    static let minimumDragToDismiss: CGFloat = 100
 }
 
 struct VideoPlayerView: View {
@@ -201,7 +207,7 @@ struct VideoPlayerView: View {
                 resetControlsTimer()
             }
             .gesture(
-                DragGesture(minimumDistance: 50)
+                DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
                     .onEnded { value in
                         handleSwipeGesture(value: value)
                     }
@@ -413,71 +419,73 @@ struct VideoInfoSheet: View {
     let onDismiss: () -> Void
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Drag handle
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.white.opacity(0.5))
-                .frame(width: 40, height: 5)
-                .padding(.top, 8)
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Title
-                    Text(video.title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
-                    // Channel info
-                    HStack {
-                        Text(video.channelName)
-                            .font(.headline)
-                            .foregroundColor(.white.opacity(0.9))
-                        Spacer()
-                    }
-                    
-                    // Metadata
-                    HStack(spacing: 12) {
-                        Label(video.durationString, systemImage: "clock")
-                        Label(video.relativePublishDate, systemImage: "calendar")
-                    }
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    
-                    // Description
-                    if let description = video.description, !description.isEmpty {
-                        Divider()
-                            .background(Color.white.opacity(0.3))
-                        
-                        Text("Description")
-                            .font(.headline)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Drag handle
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(Color.white.opacity(0.5))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 8)
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Title
+                        Text(video.title)
+                            .font(.title2)
+                            .fontWeight(.bold)
                             .foregroundColor(.white)
                         
-                        Text(description)
-                            .font(.body)
-                            .foregroundColor(.white.opacity(0.8))
+                        // Channel info
+                        HStack {
+                            Text(video.channelName)
+                                .font(.headline)
+                                .foregroundColor(.white.opacity(0.9))
+                            Spacer()
+                        }
+                        
+                        // Metadata
+                        HStack(spacing: 12) {
+                            Label(video.durationString, systemImage: "clock")
+                            Label(video.relativePublishDate, systemImage: "calendar")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                        
+                        // Description
+                        if let description = video.description, !description.isEmpty {
+                            Divider()
+                                .background(Color.white.opacity(0.3))
+                            
+                            Text("Description")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        
+                        Spacer(minLength: 20)
                     }
-                    
-                    Spacer(minLength: 20)
+                    .padding()
                 }
-                .padding()
             }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: UIScreen.main.bounds.height * 0.5)
-        .background(Color.black.opacity(0.9))
-        .cornerRadius(20, corners: [.topLeft, .topRight])
-        .onTapGesture {
-            // Prevent dismissing when tapping content
-        }
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        onDismiss()
+            .frame(maxWidth: .infinity)
+            .frame(height: geometry.size.height * 0.5)
+            .background(Color.black.opacity(0.9))
+            .cornerRadius(20, corners: [.topLeft, .topRight])
+            .onTapGesture {
+                // Prevent dismissing when tapping content
+            }
+            .gesture(
+                DragGesture()
+                    .onEnded { value in
+                        if value.translation.height > VideoPlayerConfig.minimumDragToDismiss {
+                            onDismiss()
+                        }
                     }
-                }
-        )
+            )
+        }
     }
 }
 
