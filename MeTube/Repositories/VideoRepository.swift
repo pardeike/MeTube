@@ -91,7 +91,17 @@ class VideoRepository {
     
     /// Save multiple videos in a batch
     func saveVideos(_ videos: [VideoEntity]) throws {
-        for video in videos {
+        // Deduplicate videos by videoId to prevent inserting duplicates
+        var seenIds = Set<String>()
+        let uniqueVideos = videos.filter { video in
+            if seenIds.contains(video.videoId) {
+                return false
+            }
+            seenIds.insert(video.videoId)
+            return true
+        }
+        
+        for video in uniqueVideos {
             try saveVideo(video)
         }
     }
@@ -100,8 +110,18 @@ class VideoRepository {
     /// - Parameter videos: Array of video entities to merge
     /// - Returns: Number of new videos added
     func mergeVideos(_ videos: [VideoEntity]) throws -> Int {
+        // Deduplicate input videos by videoId
+        var seenIds = Set<String>()
+        let uniqueVideos = videos.filter { video in
+            if seenIds.contains(video.videoId) {
+                return false
+            }
+            seenIds.insert(video.videoId)
+            return true
+        }
+        
         var newCount = 0
-        for video in videos {
+        for video in uniqueVideos {
             if (try? fetchVideo(byId: video.videoId)) == nil {
                 modelContext.insert(video)
                 newCount += 1
