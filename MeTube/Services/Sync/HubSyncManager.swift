@@ -174,13 +174,17 @@ class HubSyncManager {
     
     /// Fetch feed from hub server (incremental or full)
     private func fetchFeed(accessToken: String?) async throws -> Int {
+        // Check if we have any videos in local database
+        let videoCount = try videoRepository.count()
+        
         // Determine if we should use incremental sync
-        let since = lastFeedSync
+        // Force full fetch if no videos in local database, even if we have a lastFeedSync timestamp
+        let since = (videoCount == 0) ? nil : lastFeedSync
         
         if let since = since {
             appLog("Fetching incremental feed since \(since)", category: .feed, level: .info)
         } else {
-            appLog("Fetching full feed (first sync)", category: .feed, level: .info)
+            appLog("Fetching full feed (first sync or no local videos)", category: .feed, level: .info)
         }
         
         // Fetch with pagination
