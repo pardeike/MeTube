@@ -234,7 +234,7 @@ class FeedViewModel: ObservableObject {
                 appLog("Hub sync needed, starting in background", category: .feed, level: .info)
                 Task {
                     do {
-                        try await hubSyncManager.syncIfNeeded()
+                        _ = try await hubSyncManager.syncIfNeeded()
                         await refreshFromDatabase()
                     } catch {
                         appLog("Background hub sync failed: \(error)", category: .feed, level: .error)
@@ -247,7 +247,7 @@ class FeedViewModel: ObservableObject {
                 appLog("Status sync needed, starting in background", category: .feed, level: .info)
                 Task {
                     do {
-                        try await statusSyncManager.syncIfNeeded()
+                        _ = try await statusSyncManager.syncIfNeeded()
                         await refreshFromDatabase()
                     } catch {
                         appLog("Background status sync failed: \(error)", category: .feed, level: .error)
@@ -408,7 +408,7 @@ class FeedViewModel: ObservableObject {
             // Trigger background sync
             Task {
                 do {
-                    try await statusSyncManager.syncIfNeeded()
+                    _ = try await statusSyncManager.syncIfNeeded()
                 } catch {
                     appLog("Background status sync failed: \(error)", category: .cloudKit, level: .error)
                 }

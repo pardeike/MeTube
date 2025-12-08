@@ -82,13 +82,14 @@ class HubSyncManager {
     }
     
     /// Perform sync if needed (non-blocking check)
-    func syncIfNeeded() async throws {
+    /// - Returns: Number of new videos added, or 0 if sync was not needed
+    func syncIfNeeded() async throws -> Int {
         guard shouldSync() else {
             appLog("Sync not needed at this time", category: .feed, level: .debug)
-            return
+            return 0
         }
         
-        try await performSync()
+        return try await performSync()
     }
     
     /// Perform a full sync operation
