@@ -106,44 +106,71 @@ struct VideoPlayerView: View {
                 
                 // Overlay Controls
                 VStack {
-                    // Top Bar
+                    // Top Bar with controls and info
                     if showingControls {
-                        HStack {
-                            Button(action: {
-                                appLog("Dismiss button tapped", category: .player, level: .info)
-                                dismissPlayerView()
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
+                        VStack(spacing: 0) {
+                            // Control buttons row
+                            HStack {
+                                Button(action: {
+                                    appLog("Dismiss button tapped", category: .player, level: .info)
+                                    dismissPlayerView()
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Circle())
+                                }
+                                
+                                Spacer()
+                                
+                                // Share Button for YouTube URL
+                                SharePlayButton(videoId: video.id)
+                                    .frame(width: 44, height: 44)
+                                
+                                // AirPlay Button
+                                AirPlayButton()
+                                    .frame(width: 44, height: 44)
+                                
+                                Button(action: {
+                                    appLog("Mark watched button tapped", category: .player, level: .info)
+                                    markWatchedAndAdvance()
+                                }) {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Circle())
+                                }
                             }
+                            .padding()
                             
-                            Spacer()
-                            
-                            // Share Button for YouTube URL
-                            SharePlayButton(videoId: video.id)
-                                .frame(width: 44, height: 44)
-                            
-                            // AirPlay Button
-                            AirPlayButton()
-                                .frame(width: 44, height: 44)
-                            
-                            Button(action: {
-                                appLog("Mark watched button tapped", category: .player, level: .info)
-                                markWatchedAndAdvance()
-                            }) {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.title2)
+                            // Video Info Bar (moved from bottom)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(video.title)
+                                    .font(.headline)
                                     .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
+                                    .lineLimit(2)
+                                
+                                Text(video.channelName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.8))
+                                
+                                HStack {
+                                    Text(video.durationString)
+                                    Text("•")
+                                    Text(video.relativePublishDate)
+                                    
+                                    Spacer()
+                                }
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.6))
                             }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding()
                         .background(
                             LinearGradient(
                                 colors: [Color.black.opacity(0.7), Color.clear],
@@ -154,39 +181,6 @@ struct VideoPlayerView: View {
                     }
                     
                     Spacer()
-                    
-                    // Bottom Info Bar
-                    if showingControls {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(video.title)
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .lineLimit(2)
-                            
-                            Text(video.channelName)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            HStack {
-                                Text(video.durationString)
-                                Text("•")
-                                Text(video.relativePublishDate)
-                                
-                                Spacer()
-                            }
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.clear, Color.black.opacity(0.7)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    }
                 }
                 
                 // Video info sheet overlay (draggable from bottom)
@@ -309,7 +303,8 @@ struct VideoPlayerView: View {
                 
                 // Set up periodic time observer to track playback position
                 let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+                    guard let self = self else { return }
                     self.currentPlaybackTime = time.seconds
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
@@ -407,8 +402,15 @@ struct VideoPlayerView: View {
                 // Swipe up - dismiss player
                 appLog("Swipe up detected - dismissing player", category: .player, level: .info)
                 dismissPlayerView()
+            } else if verticalAmount > 0 {
+                // Swipe down - show info sheet
+                appLog("Swipe down detected - showing info sheet", category: .player, level: .info)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    // Calculate sheet height based on screen size
+                    // Using a rough estimate since we don't have geometry here
+                    infoSheetOffset = -UIScreen.main.bounds.height * 0.5
+                }
             }
-            // Note: Swipe down is handled by the info sheet's own drag gesture
         }
     }
     
