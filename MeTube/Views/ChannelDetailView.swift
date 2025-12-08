@@ -61,7 +61,7 @@ struct ChannelDetailView: View {
                         selectedVideo = video
                         showingPlayer = true
                     },
-                    onMarkWatched: { video in
+                    onToggleWatched: { video in
                         Task {
                             await feedViewModel.markAsWatched(video)
                         }
