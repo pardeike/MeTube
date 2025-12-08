@@ -42,22 +42,35 @@ struct VideoPlayerView: View {
     let onDismiss: () -> Void
     let onMarkWatched: () -> Void
     var nextVideo: Video? = nil
+    var previousVideo: Video? = nil
     var onNextVideo: ((Video) -> Void)? = nil
+    var onPreviousVideo: ((Video) -> Void)? = nil
     
     @State private var showingControls = true
     @State private var controlsTimer: Timer?
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
+    @State private var showingVideoInfo = false
     
     /// Shared stream extractor instance
     private let streamExtractor = YouTubeStreamExtractor.shared
     
-    init(video: Video, onDismiss: @escaping () -> Void, onMarkWatched: @escaping () -> Void, nextVideo: Video? = nil, onNextVideo: ((Video) -> Void)? = nil) {
+    init(
+        video: Video,
+        onDismiss: @escaping () -> Void,
+        onMarkWatched: @escaping () -> Void,
+        nextVideo: Video? = nil,
+        previousVideo: Video? = nil,
+        onNextVideo: ((Video) -> Void)? = nil,
+        onPreviousVideo: ((Video) -> Void)? = nil
+    ) {
         self.video = video
         self.onDismiss = onDismiss
         self.onMarkWatched = onMarkWatched
         self.nextVideo = nextVideo
+        self.previousVideo = previousVideo
         self.onNextVideo = onNextVideo
+        self.onPreviousVideo = onPreviousVideo
         appLog("VideoPlayerView init called", category: .player, level: .info, context: [
             "videoId": video.id,
             "title": video.title,
@@ -153,23 +166,6 @@ struct VideoPlayerView: View {
                                 Text(video.relativePublishDate)
                                 
                                 Spacer()
-                                
-                                // Next Video Button
-                                if nextVideo != nil {
-                                    Button(action: markWatchedAndAdvance) {
-                                        HStack(spacing: 4) {
-                                            Text("Next")
-                                            Image(systemName: "forward.fill")
-                                        }
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(Color.red)
-                                        .cornerRadius(16)
-                                    }
-                                }
                             }
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.6))
@@ -185,6 +181,16 @@ struct VideoPlayerView: View {
                         )
                     }
                 }
+                
+                // Video info sheet overlay
+                if showingVideoInfo {
+                    VideoInfoSheet(video: video, onDismiss: {
+                        withAnimation {
+                            showingVideoInfo = false
+                        }
+                    })
+                    .transition(.move(edge: .bottom))
+                }
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -194,6 +200,12 @@ struct VideoPlayerView: View {
                 }
                 resetControlsTimer()
             }
+            .gesture(
+                DragGesture(minimumDistance: 50)
+                    .onEnded { value in
+                        handleSwipeGesture(value: value)
+                    }
+            )
             .onAppear {
                 appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: ["videoId": video.id])
                 resetControlsTimer()
@@ -329,6 +341,59 @@ struct VideoPlayerView: View {
         }
     }
     
+    /// Handles swipe gestures for player navigation
+    private func handleSwipeGesture(value: DragGesture.Value) {
+        let horizontalAmount = value.translation.width
+        let verticalAmount = value.translation.height
+        
+        // Determine if swipe is more horizontal or vertical
+        if abs(horizontalAmount) > abs(verticalAmount) {
+            // Horizontal swipe
+            if horizontalAmount > 0 {
+                // Swipe right - previous video
+                handlePreviousVideo()
+            } else {
+                // Swipe left - next video
+                handleNextVideo()
+            }
+        } else {
+            // Vertical swipe
+            if verticalAmount < 0 {
+                // Swipe up - dismiss player
+                appLog("Swipe up detected - dismissing player", category: .player, level: .info)
+                cleanupPlayer()
+                onDismiss()
+            } else {
+                // Swipe down - show video info
+                appLog("Swipe down detected - showing video info", category: .player, level: .info)
+                withAnimation {
+                    showingVideoInfo = true
+                }
+            }
+        }
+    }
+    
+    /// Handle next video navigation
+    private func handleNextVideo() {
+        guard let next = nextVideo else {
+            appLog("No next video available", category: .player, level: .debug)
+            return
+        }
+        appLog("Swipe left detected - advancing to next video", category: .player, level: .info)
+        markWatchedAndAdvance()
+    }
+    
+    /// Handle previous video navigation
+    private func handlePreviousVideo() {
+        guard let previous = previousVideo else {
+            appLog("No previous video available", category: .player, level: .debug)
+            return
+        }
+        appLog("Swipe right detected - going to previous video", category: .player, level: .info)
+        cleanupPlayer()
+        onPreviousVideo?(previous)
+    }
+    
     private func resetControlsTimer() {
         controlsTimer?.invalidate()
         if showingControls {
@@ -338,6 +403,103 @@ struct VideoPlayerView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Video Info Sheet
+
+struct VideoInfoSheet: View {
+    let video: Video
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Drag handle
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.white.opacity(0.5))
+                .frame(width: 40, height: 5)
+                .padding(.top, 8)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Title
+                    Text(video.title)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    // Channel info
+                    HStack {
+                        Text(video.channelName)
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.9))
+                        Spacer()
+                    }
+                    
+                    // Metadata
+                    HStack(spacing: 12) {
+                        Label(video.durationString, systemImage: "clock")
+                        Label(video.relativePublishDate, systemImage: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
+                    
+                    // Description
+                    if let description = video.description, !description.isEmpty {
+                        Divider()
+                            .background(Color.white.opacity(0.3))
+                        
+                        Text("Description")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text(description)
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    
+                    Spacer(minLength: 20)
+                }
+                .padding()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: UIScreen.main.bounds.height * 0.5)
+        .background(Color.black.opacity(0.9))
+        .cornerRadius(20, corners: [.topLeft, .topRight])
+        .onTapGesture {
+            // Prevent dismissing when tapping content
+        }
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    if value.translation.height > 100 {
+                        onDismiss()
+                    }
+                }
+        )
+    }
+}
+
+// MARK: - Corner Radius Extension
+
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+    
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 

@@ -164,6 +164,7 @@ struct FeedView: View {
             .fullScreenCover(item: $selectedVideo) { video in
                 let _ = appLog("fullScreenCover presenting video: \(video.id)", category: .ui, level: .info)
                 let nextVideo = getNextVideo(after: video)
+                let previousVideo = getPreviousVideo(before: video)
                 VideoPlayerView(
                     video: video,
                     onDismiss: {
@@ -177,9 +178,14 @@ struct FeedView: View {
                         }
                     },
                     nextVideo: nextVideo,
+                    previousVideo: previousVideo,
                     onNextVideo: { next in
                         appLog("VideoPlayerView onNextVideo called: \(next.id)", category: .ui, level: .info)
                         selectedVideo = next
+                    },
+                    onPreviousVideo: { previous in
+                        appLog("VideoPlayerView onPreviousVideo called: \(previous.id)", category: .ui, level: .info)
+                        selectedVideo = previous
                     }
                 )
             }
@@ -194,6 +200,16 @@ struct FeedView: View {
         }
         let nextIndex = currentIndex + 1
         return nextIndex < videos.count ? videos[nextIndex] : nil
+    }
+    
+    /// Gets the previous video before the current one
+    private func getPreviousVideo(before video: Video) -> Video? {
+        let videos = feedViewModel.filteredVideos
+        guard let currentIndex = videos.firstIndex(where: { $0.id == video.id }) else {
+            return nil
+        }
+        let previousIndex = currentIndex - 1
+        return previousIndex >= 0 ? videos[previousIndex] : nil
     }
     
     private var quotaIcon: String {
