@@ -28,6 +28,10 @@ Status sync failed with "Zone Not Found" because the custom record zone was neve
 
 Multiple sync tasks running simultaneously caused `NSURLErrorDomain Code=-999` cancellation errors.
 
+### 6. Duplicate Entity Crashes
+
+After removing unique constraints, duplicate entities could exist in the database, causing fatal errors when using `Dictionary(uniqueKeysWithValues:)` which requires unique keys.
+
 ## Root Causes
 
 **CloudKit Unique Constraints**: When a SwiftData app has CloudKit entitlements (which MeTube has for StatusEntity sync), SwiftData automatically enables CloudKit integration for **all entities in the model**. CloudKit has specific restrictions:
@@ -95,6 +99,14 @@ Removed `@Attribute(.unique)` from all three SwiftData entities:
 - **Auto Zone Creation**: Added `createZone()` method that creates the custom CloudKit record zone if it doesn't exist
 - **Enhanced Error Handling**: Improved zone not found error handling in pull operations
 
+### Part 3: Duplicate Entity Handling (Commit ce99580)
+
+#### FeedViewModel.swift
+- **Graceful Duplicate Handling**: Replaced `Dictionary(uniqueKeysWithValues:)` with `reduce(into:)` for building channel and status caches - handles duplicates by keeping the last value instead of crashing
+
+#### All Repositories
+- **Batch Save Deduplication**: Added input deduplication in `saveChannels()`, `saveVideos()`, `saveStatuses()`, and `mergeVideos()` methods using Set-based filtering to remove duplicate IDs before processing
+
 ## Why This Is Safe
 
 **Uniqueness**: Already enforced at the application level in the repository layer:
@@ -108,6 +120,12 @@ Each repository uses predicates to query for existing entities by ID and either 
 **Retry Logic**: Uses exponential backoff (1s, 2s, 4s) with max 3 attempts. Preserves all existing logging.
 
 **Sync Serialization**: Single boolean flag check at entry point prevents race conditions without complex locking.
+
+**Duplicate Handling**: 
+- FeedViewModel uses `reduce(into:)` which naturally handles duplicates by overwriting with latest value
+- Repository batch methods filter input arrays to remove duplicates before processing using Set operations (O(1) lookup)
+- Single-entity save methods still check database for existing records before inserting
+- Defensive programming approach handles edge cases without requiring database-level constraints
 
 **Zone Creation**: Only creates zone once, subsequent syncs skip creation check. Idempotent operation.
 
