@@ -233,7 +233,7 @@ class HubSyncManager {
                 appLog("User not found on hub server, attempting re-registration", category: .feed, level: .warning)
                 
                 // Only retry once to avoid infinite loop
-                if !hasAttemptedReregistration, let token = accessToken {
+                if !hasAttemptedReregistration, accessToken != nil {
                     hasAttemptedReregistration = true
                     
                     do {
@@ -265,7 +265,7 @@ class HubSyncManager {
                 
                 if attempt < HubSyncConfig.maxRetries - 1 {
                     let delay = HubSyncConfig.baseRetryDelay * pow(2.0, Double(attempt))
-                    appLog("Feed fetch failed (attempt \(attempt + 1)), retrying in \(delay)s", category: .feed, level: .warning)
+                    appLog("Feed fetch failed (attempt \(attempt + 1)), error \(error), retrying in \(delay)s", category: .feed, level: .warning)
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 }
             }

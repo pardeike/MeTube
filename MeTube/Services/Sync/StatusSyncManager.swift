@@ -189,8 +189,9 @@ class StatusSyncManager {
             
             operation.fetchRecordZonesResultBlock = { result in
                 switch result {
-                case .success(let zones):
-                    continuation.resume(returning: zones[zoneID] != nil)
+                case .success: // (let zones):
+                    continuation.resume(returning: true)
+                    //continuation.resume(returning: zones[zoneID] != nil)
                 case .failure(let error):
                     appLog("Failed to check zone existence: \(error)", category: .cloudKit, level: .debug)
                     continuation.resume(throwing: error)
