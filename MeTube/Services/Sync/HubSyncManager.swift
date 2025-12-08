@@ -37,6 +37,7 @@ class HubSyncManager {
     private let userId: String
     
     /// Concurrency guard to prevent overlapping syncs
+    /// Thread-safe because this class is @MainActor - all access is serialized on main actor
     private var isSyncing = false
     
     /// Last time the feed was synced
