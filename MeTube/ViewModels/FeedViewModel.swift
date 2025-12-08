@@ -10,6 +10,78 @@ import Combine
 import SwiftData
 import BackgroundTasks
 
+// MARK: - Feed Configuration
+
+/// Configuration constants for the feed
+enum FeedConfig {
+    /// Background task identifier
+    static let backgroundTaskIdentifier = "com.metube.app.refresh"
+    
+    /// Minimum interval between background refreshes (in seconds)
+    static let backgroundRefreshInterval: TimeInterval = 15 * 60 // 15 minutes
+    
+    /// Interval for forcing a full refresh (24 hours)
+    static let fullRefreshInterval: TimeInterval = 24 * 60 * 60
+    
+    /// Duration threshold for filtering YouTube Shorts (videos under this duration are excluded)
+    static let shortsDurationThreshold: TimeInterval = 60 // seconds
+    
+    /// Time window for background refresh (fetch videos from last N hours)
+    static let backgroundRefreshWindow: TimeInterval = 3600 // 1 hour
+    
+    /// Daily quota limit (YouTube default is 10,000)
+    /// Note: With hub server, we only use quota for fetching user's subscriptions (~2-3 calls)
+    static let dailyQuotaLimit = 10000
+    
+    /// Warning threshold (80% of quota)
+    static let quotaWarningThreshold = 8000
+}
+
+// MARK: - Loading State
+
+/// Detailed loading state for better UI feedback
+enum LoadingState: Equatable {
+    case idle
+    case loadingSubscriptions(progress: String)
+    case loadingVideos(channelIndex: Int, totalChannels: Int, channelName: String)
+    case loadingStatuses
+    case refreshing
+    case backgroundRefreshing
+    
+    var description: String {
+        switch self {
+        case .idle:
+            return ""
+        case .loadingSubscriptions(let progress):
+            return "Loading subscriptions... \(progress)"
+        case .loadingVideos(let index, let total, let name):
+            return "Loading videos (\(index)/\(total)): \(name)"
+        case .loadingStatuses:
+            return "Syncing watch status..."
+        case .refreshing:
+            return "Checking for new videos..."
+        case .backgroundRefreshing:
+            return "Updating in background..."
+        }
+    }
+    
+    var isLoading: Bool {
+        self != .idle
+    }
+}
+
+// MARK: - Quota Info
+
+/// Information about API quota usage
+struct QuotaInfo {
+    var usedToday: Int
+    var resetDate: Date
+    var isWarning: Bool { usedToday >= FeedConfig.quotaWarningThreshold }
+    var isExceeded: Bool { usedToday >= FeedConfig.dailyQuotaLimit }
+    var remainingQuota: Int { max(0, FeedConfig.dailyQuotaLimit - usedToday) }
+    var percentUsed: Double { Double(usedToday) / Double(FeedConfig.dailyQuotaLimit) * 100 }
+}
+
 /// ViewModel for managing the subscription feed with offline-first architecture
 @MainActor
 class FeedViewModel: ObservableObject {
@@ -401,8 +473,8 @@ class FeedViewModel: ObservableObject {
         }
     }
     
-    /// Schedule background refresh
-    func scheduleBackgroundRefresh() {
+    /// Schedule background refresh (called from background context)
+    nonisolated func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: FeedConfig.backgroundTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: FeedConfig.backgroundRefreshInterval)
         

@@ -29,6 +29,9 @@ enum StatusSyncConfig {
     
     /// CloudKit record type for status
     static let recordType = "WatchedStatus"
+    
+    /// CloudKit container identifier (must match CloudKitConfig.containerIdentifier from CloudKitService)
+    static let containerIdentifier = "iCloud.com.metube.app"
 }
 
 /// Manager for syncing watch status with CloudKit
@@ -76,7 +79,7 @@ class StatusSyncManager {
         self.statusRepository = statusRepository
         self.cloudKitService = cloudKitService
         self.userId = userId
-        self.container = CKContainer(identifier: CloudKitConfig.containerIdentifier)
+        self.container = CKContainer(identifier: StatusSyncConfig.containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
     }
     
