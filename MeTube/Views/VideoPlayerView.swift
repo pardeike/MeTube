@@ -303,8 +303,7 @@ struct VideoPlayerView: View {
                 
                 // Set up periodic time observer to track playback position
                 let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-                    guard let self = self else { return }
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
                     self.currentPlaybackTime = time.seconds
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
