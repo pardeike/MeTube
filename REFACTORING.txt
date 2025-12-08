@@ -1,0 +1,127 @@
+MeTube Offline‑First Refactoring Guide
+This guide describes an offline‑first architecture for the MeTube iOS/tvOS app that prioritizes instant usability and predictable sync behaviour. It addresses the problems described by the user – blocking UI while waiting for CloudKit, unreliable seen/skipped state, and convoluted data fetching – and proposes a clean separation of concerns. The design draws inspiration from modern offline‑first practices
+developersvoice.com
+, delta sync strategies
+medium.com
+, and the hub‑server integration docs.
+1. Goals and guiding principles
+Local‑first experience – The UI must be responsive immediately after launch, showing cached video lists and remembered watch/skip state without waiting for network or iCloud. The local database becomes the single source of truth (SSOT), and remote systems are synchronized asynchronously
+developersvoice.com
+.
+Non‑blocking incremental sync – New videos and updated statuses are fetched incrementally from the MeTube Hub Server or iCloud using timestamps/change tokens
+ryanashcraft.com
+. Sync happens in the background when the app is idle enough and never blocks user interaction.
+Separation of concerns – The logic for local storage, hub‑server communication, and CloudKit synchronization should be encapsulated in dedicated services. UI/ViewModels communicate only with the local store.
+Optional iCloud status sync – Only the watch/skip status should be synchronized across devices via CloudKit; the cached video list stays local to avoid unnecessary iCloud storage and to encourage delta loading from the hub server.
+Graceful degraded states – When status information has not yet been loaded (e.g., just after a cold launch), unknown states should be represented explicitly and excluded from filters. The app should never mislabel an unwatched video as watched due to missing data.
+2. Proposed architecture
+2.1 Layered structure
+Layer	Responsibilities	Implementation suggestions
+UI & ViewModels	Present video lists, channel lists and playback controls. Bind to the local data model using @Published/@Query to update automatically. Issue intents (mark watched, skip, search/filter) that mutate the local store.	Use SwiftUI with MVVM as today. Avoid direct network calls from ViewModels; rely on repositories.
+Repositories	Encapsulate persistence and expose CRUD operations for videos, channels and statuses. Provide flows for live query (Combine/AsyncSequence) so UI reflects updates immediately.	Use SwiftData, Core Data with NSPersistentCloudKitContainer, or Realm. Store video and status entities with fields described below.
+Sync Engine	Coordinate incremental fetch from the hub server and propagate changes to the local database. Maintain a lastFeedSync timestamp and fetch only new videos using the since parameter and nextCursor from the hub API
+github.com
+. Merge new videos into the database, deduplicating by videoId. Should schedule work using background tasks / OperationQueue when the app is in foreground and idle.	Extracted into a HubSyncManager class. Use the hub server’s health check, channel registration and feed endpoints as documented in SERVER_INTEGRATION.md
+github.com
+. Persist the lastFeedSync value in AppStorage or local DB.
+Status Sync Engine (optional)	Synchronize watched/skipped state with iCloud. Use CloudKit change tokens or CKFetchRecordZoneChangesOperation to fetch only changes since the last sync
+ryanashcraft.com
+. Push local status changes to CloudKit with small batch operations; mark statuses as synced = true when acknowledged; maintain lastStatusSync timestamp.	Implement via WatchedStatusSync (see code in server docs) or by using NSPersistentCloudKitContainer if adopting SwiftData/Core Data.
+Persistence layer	Handles local storage for videos, channels and statuses. Provides atomic initial load with a progress bar when starting cold. Should support marking statuses, unknown states and lastModified timestamps
+developersvoice.com
+.	Use a local database. Each video record has fields: videoId, channelId, publishedAt, title, description, thumbnailURL, duration, plus derived fields like synced (bool), lastModified (Date). Status records store videoId, status (enum: unwatched, watched, skipped, unknown), lastModified, and synced flags.
+2.2 Entity design
+Video entity
+videoId: String – unique key.
+channelId: String – to relate to channel.
+publishedAt: Date
+title: String?, description: String?, thumbnailURL: URL?, duration: Double?
+insertedAt: Date – local insertion time (used for sorting if publishedAt is identical).
+synced: Bool – whether the record has been sent to/pulled from remote (useful if the hub server adds server‑side metadata later).
+lastModified: Date – updated whenever metadata changes (rare for videos but necessary for future changes).
+Channel entity
+channelId: String – unique key.
+name: String?, thumbnailURL: URL?, etc.
+insertedAt: Date, lastModified: Date, synced: Bool.
+Status entity
+videoId: String – foreign key referencing video.
+status: StatusEnum – .unwatched, .watched, .skipped, .unknown.
+lastModified: Date – updated whenever status changes.
+synced: Bool – indicates if the status has been sent to iCloud.
+2.3 Database operations
+Initial load – On cold start, load all videos and statuses from the local database. Because statuses may be numerous, show a simple progress bar while reading them into memory. Only after statuses are loaded should the UI apply filters (e.g., “unwatched only”) to avoid mislabelling videos.
+State mutation – When a user marks a video as watched or skipped, update the status entity immediately and set lastModified = Date(), synced = false. Persist asynchronously to disk to avoid blocking UI.
+Unknown statuses – A new video fetched from the hub server that has no status record defaults to .unknown. In this state, the video appears even if the user has filtered to hide watched/skipped. When the status sync engine finishes fetching CloudKit statuses, unknown statuses may transition to watched or skipped without altering user filters.
+Disk‑memory sync – The repository should write changes to disk at reasonable intervals (e.g., every few seconds or when app is backgrounded). Use NSManagedObjectContext.perform(_:) or SwiftData context.save() on a background context.
+2.4 Sync flows
+Feed sync
+Trigger – On sceneWillEnterForeground or after the app becomes idle, the HubSyncManager checks the last feed sync timestamp (persisted locally). If it is nil (first launch) or older than a configured interval (e.g., one hour), a sync begins.
+Incremental fetch – Use GET /api/users/{userId}/feed?since={timestamp} to fetch videos published after the last sync
+github.com
+. Use nextCursor pagination to retrieve batches of 50–100 until no more pages remain.
+Merge – For each VideoDTO from the server, either insert into the database (if not found) or update existing records (rarely). Set insertedAt to the current time for new videos. Do not modify statuses – they are independent.
+Update lastFeedSync – After successful merge, record the current date/time as the new lastFeedSync. If network fails, keep existing lastFeedSync to try again later. Use exponential backoff for retries
+github.com
+.
+UI update – Because the UI observes the repository, new videos will appear automatically. Consider displaying non‑intrusive badges or a toast to indicate that new videos were added.
+Status sync (iCloud)
+Trigger – Begin after initial status loading and feed sync (optional). Schedule periodic runs (e.g., on entering foreground and every few hours) but do not block UI.
+Fetch changes – Use CloudKit’s CKFetchRecordZoneChangesOperation with a stored change token to request only modified status records since the last sync
+ryanashcraft.com
+. For each returned record, update the corresponding status entity in the local DB, set synced = true and update lastModified.
+Push local changes – Scan for local status entities where synced == false. Create a batch of CKRecord objects (max 400 per operation to avoid throttling
+ryanashcraft.com
+) and save them to CloudKit. Mark them as synced = true upon success.
+Update lastStatusSync – After pulling and pushing, store the new server change token for the next run and update the timestamp.
+Conflict resolution – If both local and remote have updates for the same video, choose the latest lastModified or adopt a conflict policy (e.g., remote overrides if more recent). CloudKit returns recordChangeTag to help detect conflicts.
+3. Refactoring plan for existing code
+3.1 Introduce a local database
+Select a technology – Use SwiftData (preferred for iOS 17+), Core Data, or Realm. SwiftData integrates with NSPersistentCloudKitContainer for optional iCloud sync. If using SwiftData/Core Data with CloudKit, configure the persistent container with a private zone for statuses only; exclude video entities from CloudKit to avoid large sync.
+Define models – Create VideoEntity, ChannelEntity and StatusEntity as described above. Add necessary attributes (e.g., insertedAt, synced).
+Implement repository classes – Provide methods like fetchAllVideos(), fetchVideos(filter: StatusFilter), saveVideos(_:), updateStatus(for:videoId:), and fetchStatuses() returning publishers/async sequences.
+Replace CloudKitService usage for caching – Remove the existing CloudKitService reliance for caching video metadata. Persist videos locally; rely on hub server for new videos. Keep a simplified CloudKit service solely for statuses if cross‑device sync is desired.
+3.2 Refactor FeedViewModel
+Inject repositories and managers – The view model should receive VideoRepository, StatusRepository, HubSyncManager and StatusSyncManager via initializers.
+Load data – On init, call repository.fetchAllVideos() and repository.fetchStatuses() to populate @Published properties. Display a progress indicator until statuses are loaded.
+Observe repository – Use Combine or @Query (SwiftData) to react to changes in the local database. When new videos arrive from sync, the UI updates automatically.
+State mutations – When a user marks a video as watched or skipped, call statusRepository.updateStatus(videoId:, status:). The repository marks synced = false and persists. Do not call CloudKit or hub directly from the view model.
+Trigger sync – The view model should listen to app lifecycle notifications (foreground entry) and call hubSyncManager.syncIfNeeded() and statusSyncManager.syncIfNeeded() but not await them.
+3.3 Implement HubSyncManager
+Responsibilities – Manage channel registration (initial or periodic), feed health check, incremental feed fetch, and merging results into the local DB.
+API usage – Use the base URL from HubConfig. On cold launch, call checkHealth, then registerChannels with all channel IDs (pulled from YouTube via existing YouTubeService). After initial registration, fetch the first feed page; on subsequent syncs, call GET /feed?since=lastFeedSync and follow nextCursor for pagination.
+Error handling – Use the retry helper with exponential backoff provided in SERVER_INTEGRATION.md
+github.com
+. On userNotFound errors, re‑register channels.
+Merging – Provide a method mergeFeed(videos:) that writes new videos to the database using the repository (deduplicating by videoId and preserving statuses). If a video already exists but has new metadata (rare), update fields like title or thumbnailURL and set lastModified.
+3.4 Implement StatusSyncManager (optional)
+Scoped CloudKit – Configure CloudKit with a dedicated record zone, e.g., WatchedStatusZone. Use CKRecord with fields videoId, status, userId, lastModified as shown in SERVER_INTEGRATION.md
+github.com
+.
+Change tokens – Store the server change token after each pull. On the next run, use it with CKFetchRecordZoneChangesOperation to retrieve only new changes
+ryanashcraft.com
+.
+Batch writes – When pushing local changes, batch up to 400 records per CKModifyRecordsOperation to avoid CloudKit throttling
+ryanashcraft.com
+.
+Conflict resolution – If both local and remote updates exist, use the most recent lastModified or implement a resolution policy. CloudKit’s conflict metadata can assist.
+Non‑blocking – All CloudKit operations should run on a background queue. Provide progress callbacks if desired, but never block the UI.
+4. User experience considerations
+Atomic status load – On cold launch, block video list presentation until statuses are loaded from disk. Show a simple progress indicator (e.g., “Loading watch status…”) and update progress as statuses are read. This prevents the list from showing all videos as unwatched erroneously.
+Unknown state indicator – For videos whose status hasn’t been determined (new videos before CloudKit sync), display a neutral indicator (e.g., question mark icon) and treat them as visible regardless of filter. Once statuses are fetched, update the UI seamlessly.
+Non‑intrusive sync updates – When new videos arrive, avoid resetting scroll positions or popping to the top of the feed. Append new videos at the top or bottom based on sorting; optionally show a small “N new videos” banner that the user can tap to jump.
+Background tasks – Use BGAppRefreshTask to run periodic sync in the background, updating badges or sending local notifications when new videos are available
+github.com
+.
+Fallback and error messages – If the hub server is unreachable, show cached videos and optionally allow a fallback to direct YouTube API as recommended in the docs
+github.com
+. Surface network errors via toasts rather than blocking the feed.
+5. Migration strategy
+Introduce new code parallel to existing CloudKitService – Create the local database and sync managers without removing the current CloudKit caching. Use feature flags (e.g., UseLocalDB) to switch between old and new implementation. Beta test the new flow while leaving a fallback path.
+Move metadata caching out of CloudKit – After verifying the local‑first path, decommission the old CloudKit caching of videos. Retain CloudKit only for statuses.
+Gradually adopt incremental sync – Start with full feed fetch on first run. Once confident, use the since parameter and nextCursor for delta updates to reduce network usage.
+Optional CloudKit removal – If cross‑device status sync is not essential, you can omit CloudKit entirely. The architecture will still work because the local store persists statuses across launches. CloudKit support can be added later by enabling StatusSyncManager.
+6. Conclusion
+By adopting a local‑first architecture with asynchronous sync, MeTube can provide immediate responsiveness and robust state persistence. The proposed refactoring reduces complexity, isolates responsibilities, and aligns with established offline‑first patterns
+developersvoice.com
+medium.com
+. Implementing the HubSyncManager and optional StatusSyncManager according to this guide will fix the current blocking behaviour, ensure watch/skip state is stored reliably, and set the foundation for future enhancements like push notifications and offline downloads.
