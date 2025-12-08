@@ -6,18 +6,48 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct MeTubeApp: App {
     @StateObject private var authManager = AuthenticationManager()
-    @StateObject private var feedViewModel = FeedViewModel()
     @Environment(\.scenePhase) private var scenePhase
+    
+    // SwiftData model container for offline-first architecture
+    let modelContainer: ModelContainer
+    
+    // FeedViewModel will be created after ModelContainer is ready
+    @StateObject private var feedViewModel: FeedViewModel
+    
+    init() {
+        // Initialize SwiftData model container
+        do {
+            let schema = Schema([
+                VideoEntity.self,
+                ChannelEntity.self,
+                StatusEntity.self
+            ])
+            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            self.modelContainer = container
+            
+            // Create FeedViewModel with model context
+            let context = ModelContext(container)
+            let viewModel = FeedViewModel(modelContext: context)
+            _feedViewModel = StateObject(wrappedValue: viewModel)
+            
+            appLog("SwiftData ModelContainer initialized successfully", category: .feed, level: .success)
+        } catch {
+            fatalError("Failed to initialize ModelContainer: \(error)")
+        }
+    }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager)
                 .environmentObject(feedViewModel)
+                .modelContainer(modelContainer)
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
@@ -25,9 +55,10 @@ struct MeTubeApp: App {
                 // Schedule background refresh when app enters background
                 feedViewModel.scheduleBackgroundRefresh()
             case .active:
-                // Video statuses are automatically loaded in background during startup
-                // and kept in cache, so no need to reload on every scene activation
-                break
+                // Trigger non-blocking sync when app becomes active
+                Task {
+                    await feedViewModel.syncIfNeeded()
+                }
             default:
                 break
             }

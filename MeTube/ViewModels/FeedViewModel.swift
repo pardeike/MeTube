@@ -1,87 +1,16 @@
 //
-//  FeedViewModel.swift
+//  FeedViewModelNew.swift
 //  MeTube
 //
-//  ViewModel for the subscription feed
+//  Refactored ViewModel for the subscription feed using offline-first architecture
 //
 
 import Foundation
 import Combine
+import SwiftData
 import BackgroundTasks
 
-// MARK: - Feed Configuration
-
-/// Configuration constants for the feed
-enum FeedConfig {
-    /// Background task identifier
-    static let backgroundTaskIdentifier = "com.metube.app.refresh"
-    
-    /// Minimum interval between background refreshes (in seconds)
-    static let backgroundRefreshInterval: TimeInterval = 15 * 60 // 15 minutes
-    
-    /// Interval for forcing a full refresh (24 hours)
-    static let fullRefreshInterval: TimeInterval = 24 * 60 * 60
-    
-    /// Duration threshold for filtering YouTube Shorts (videos under this duration are excluded)
-    static let shortsDurationThreshold: TimeInterval = 60 // seconds
-    
-    /// Time window for background refresh (fetch videos from last N hours)
-    static let backgroundRefreshWindow: TimeInterval = 3600 // 1 hour
-    
-    /// Daily quota limit (YouTube default is 10,000)
-    /// Note: With hub server, we only use quota for fetching user's subscriptions (~2-3 calls)
-    static let dailyQuotaLimit = 10000
-    
-    /// Warning threshold (80% of quota)
-    static let quotaWarningThreshold = 8000
-}
-
-// MARK: - Loading State
-
-/// Detailed loading state for better UI feedback
-enum LoadingState: Equatable {
-    case idle
-    case loadingSubscriptions(progress: String)
-    case loadingVideos(channelIndex: Int, totalChannels: Int, channelName: String)
-    case loadingStatuses
-    case refreshing
-    case backgroundRefreshing
-    
-    var description: String {
-        switch self {
-        case .idle:
-            return ""
-        case .loadingSubscriptions(let progress):
-            return "Loading subscriptions... \(progress)"
-        case .loadingVideos(let index, let total, let name):
-            return "Loading videos (\(index)/\(total)): \(name)"
-        case .loadingStatuses:
-            return "Syncing watch status..."
-        case .refreshing:
-            return "Checking for new videos..."
-        case .backgroundRefreshing:
-            return "Updating in background..."
-        }
-    }
-    
-    var isLoading: Bool {
-        self != .idle
-    }
-}
-
-// MARK: - Quota Info
-
-/// Information about API quota usage
-struct QuotaInfo {
-    var usedToday: Int
-    var resetDate: Date
-    var isWarning: Bool { usedToday >= FeedConfig.quotaWarningThreshold }
-    var isExceeded: Bool { usedToday >= FeedConfig.dailyQuotaLimit }
-    var remainingQuota: Int { max(0, FeedConfig.dailyQuotaLimit - usedToday) }
-    var percentUsed: Double { Double(usedToday) / Double(FeedConfig.dailyQuotaLimit) * 100 }
-}
-
-/// ViewModel for managing the subscription feed
+/// ViewModel for managing the subscription feed with offline-first architecture
 @MainActor
 class FeedViewModel: ObservableObject {
     // MARK: - Published Properties
@@ -140,482 +69,241 @@ class FeedViewModel: ObservableObject {
             .sorted { $0.publishedDate > $1.publishedDate }
     }
     
-    // MARK: - Services
+    // MARK: - Repositories and Managers
     
+    private let videoRepository: VideoRepository
+    private let statusRepository: StatusRepository
+    private let channelRepository: ChannelRepository
+    private let hubSyncManager: HubSyncManager
+    private let statusSyncManager: StatusSyncManager
     private let youtubeService = YouTubeService()
-    private let cloudKitService = CloudKitService()
-    private let hubServerService = HubServerService()
-    private let hubUserId = HubServerService.getUserId()
     
     // MARK: - Cache
     
-    private var videoStatusCache: [String: VideoStatus] = [:]
-    private var existingVideoIds: Set<String> = []
+    private var channelCache: [String: ChannelEntity] = [:]
+    private var statusCache: [String: StatusEntity] = [:]
     
-    /// Cached app settings loaded from CloudKit
+    // MARK: - App Settings
+    
     private var appSettings: AppSettings = .default
-    
-    // MARK: - Task Management
-    
-    /// Task for loading cached data from CloudKit
-    private var loadCacheTask: Task<Void, Never>?
-    /// Task for saving cached data to CloudKit
-    private var saveCacheTask: Task<Void, Never>?
-    /// Task for loading video statuses in background
-    private var loadStatusTask: Task<Void, Never>?
+    private let cloudKitService = CloudKitService()
     
     // MARK: - Initialization
     
-    init() {
-        appLog("FeedViewModel initializing", category: .feed, level: .info)
-        // Prepare schema and load all data from CloudKit asynchronously
-        loadCachedData()
-        appLog("FeedViewModel initialized - preparing schema and loading data from CloudKit", category: .feed, level: .success)
-    }
-    
-    // MARK: - CloudKit Persistence
-    
-    /// Loads cached channels, videos, and app settings from CloudKit
-    /// This syncs data across devices and avoids the ~4MB UserDefaults size limit
-    private func loadCachedData() {
-        // Cancel any existing load task
-        loadCacheTask?.cancel()
+    init(modelContext: ModelContext) {
+        appLog("FeedViewModel initializing with offline-first architecture", category: .feed, level: .info)
         
-        // CloudKit operations are async, so we need to start a Task
-        // Store the task reference to allow cancellation if needed
-        loadCacheTask = Task {
-            // Prepare schema first to check for any configuration issues
-            await prepareCloudKitSchema()
-            // Then load cached data
-            await loadCachedDataFromCloudKit()
-        }
-    }
-    
-    /// Prepares the CloudKit schema and logs any configuration issues
-    private func prepareCloudKitSchema() async {
-        let result = await cloudKitService.prepareSchema()
+        // Initialize repositories
+        self.videoRepository = VideoRepository(modelContext: modelContext)
+        self.statusRepository = StatusRepository(modelContext: modelContext)
+        self.channelRepository = ChannelRepository(modelContext: modelContext)
         
-        if !result.allReady {
-            // Log detailed errors for troubleshooting
-            for error in result.errors {
-                appLog("CloudKit schema issue: \(error)", category: .cloudKit, level: .warning)
-            }
-            appLog("CloudKit schema needs configuration. Open CloudKit Dashboard at https://icloud.developer.apple.com and configure indexes. See CONFIG.md section 'CloudKit Setup' > 'Step 3: Configure Field Indexes' for details.", category: .cloudKit, level: .warning)
-        }
-    }
-    
-    /// Async method to load cached data from CloudKit
-    /// Each data type is loaded independently to support partial database setups
-    private func loadCachedDataFromCloudKit() async {
-        appLog("Loading cached data from CloudKit", category: .cloudKit, level: .debug)
-        
-        // Load app settings from CloudKit first (fetched by ID, not queried)
-        do {
-            if let settings = try await cloudKitService.fetchAppSettings() {
-                appSettings = settings
-                lastRefreshDate = settings.lastRefreshDate
-                quotaInfo = QuotaInfo(
-                    usedToday: settings.quotaUsedToday,
-                    resetDate: settings.quotaResetDate ?? Date()
-                )
-                
-                // Check if quota should be reset (new day in Pacific Time)
-                if let resetDate = settings.quotaResetDate, shouldResetQuota(lastResetDate: resetDate) {
-                    quotaInfo = QuotaInfo(usedToday: 0, resetDate: nextQuotaResetDate())
-                }
-                
-                appLog("Loaded app settings from CloudKit", category: .cloudKit, level: .success)
-            }
-        } catch {
-            appLog("Failed to load app settings from CloudKit: \(error)", category: .cloudKit, level: .error)
-        }
-        
-        // Load cached channels from CloudKit (requires 'name' index)
-        do {
-            let cachedChannels = try await cloudKitService.fetchAllChannels()
-            if !cachedChannels.isEmpty {
-                channels = cachedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
-                appLog("Loaded \(channels.count) cached channels from CloudKit", category: .cloudKit, level: .success)
-            } else {
-                appLog("No cached channels found in CloudKit", category: .cloudKit, level: .info)
-            }
-        } catch {
-            appLog("Failed to load cached channels from CloudKit: \(error)", category: .cloudKit, level: .error)
-        }
-        
-        // Load cached videos from CloudKit (requires 'status' index)
-        do {
-            let cachedVideos = try await cloudKitService.fetchAllVideos()
-            if !cachedVideos.isEmpty {
-                allVideos = cachedVideos
-                appLog("Loaded \(allVideos.count) cached videos from CloudKit", category: .cloudKit, level: .success)
-                
-                // Load video statuses in the background without blocking the UI
-                // This allows users to see and interact with videos immediately
-                startBackgroundStatusLoad()
-            } else {
-                appLog("No cached videos found in CloudKit", category: .cloudKit, level: .info)
-            }
-        } catch {
-            appLog("Failed to load cached videos from CloudKit: \(error)", category: .cloudKit, level: .error)
-        }
-    }
-    
-    /// Saves channels and videos to CloudKit for persistence and cross-device sync
-    private func saveCachedData() {
-        // Cancel any existing save task to avoid redundant saves
-        saveCacheTask?.cancel()
-        
-        // Store the task reference to prevent concurrent saves
-        saveCacheTask = Task {
-            await saveCachedDataToCloudKit()
-        }
-    }
-    
-    /// Async method to save cached data to CloudKit
-    /// Each data type is saved independently to support partial database setups
-    private func saveCachedDataToCloudKit() async {
-        appLog("Saving data to CloudKit", category: .cloudKit, level: .debug, context: [
-            "channels": channels.count,
-            "videos": allVideos.count
-        ])
-        
-        // Save app settings to CloudKit (saved by ID, doesn't require indexes)
-        do {
-            appSettings.lastRefreshDate = lastRefreshDate
-            appSettings.quotaUsedToday = quotaInfo.usedToday
-            appSettings.quotaResetDate = quotaInfo.resetDate
-            try await cloudKitService.saveAppSettings(appSettings)
-            appLog("Saved app settings to CloudKit", category: .cloudKit, level: .success)
-        } catch {
-            appLog("Failed to save app settings to CloudKit: \(error)", category: .cloudKit, level: .error)
-        }
-        
-        // Save channels to CloudKit
-        if !channels.isEmpty {
-            do {
-                try await cloudKitService.batchSaveChannels(channels)
-                appLog("Saved \(channels.count) channels to CloudKit", category: .cloudKit, level: .success)
-            } catch {
-                appLog("Failed to save channels to CloudKit: \(error)", category: .cloudKit, level: .error)
-            }
-        }
-        
-        // Save videos to CloudKit
-        if !allVideos.isEmpty {
-            do {
-                try await cloudKitService.batchSaveVideos(allVideos)
-                appLog("Saved \(allVideos.count) videos to CloudKit", category: .cloudKit, level: .success)
-            } catch {
-                appLog("Failed to save videos to CloudKit: \(error)", category: .cloudKit, level: .error)
-            }
-        }
-    }
-    
-    // MARK: - Helper Methods
-    
-    /// Converts a VideoDTO from the hub server to a Video model
-    /// Returns nil if the video should be filtered (e.g., Shorts, missing channel)
-    private func convertVideoDTO(_ dto: VideoDTO) -> Video? {
-        // Find the channel for this video
-        guard let channel = channels.first(where: { $0.id == dto.channelId }) else {
-            return nil
-        }
-        
-        // Skip shorts (videos under threshold duration)
-        if let duration = dto.duration, duration < FeedConfig.shortsDurationThreshold {
-            return nil
-        }
-        
-        return Video(
-            id: dto.videoId,
-            title: dto.title ?? "Untitled",
-            channelId: dto.channelId,
-            channelName: channel.name,
-            publishedDate: dto.publishedAt,
-            duration: dto.duration ?? 0,
-            thumbnailURL: dto.thumbnailUrl.flatMap { URL(string: $0) },
-            description: dto.description,
-            status: videoStatusCache[dto.videoId] ?? .unwatched
+        // Initialize sync managers
+        let userId = HubServerService.getUserId()
+        self.hubSyncManager = HubSyncManager(
+            videoRepository: videoRepository,
+            channelRepository: channelRepository,
+            userId: userId
         )
+        self.statusSyncManager = StatusSyncManager(
+            statusRepository: statusRepository,
+            userId: userId
+        )
+        
+        // Load data from local database
+        Task {
+            await loadLocalData()
+        }
+        
+        appLog("FeedViewModel initialized successfully", category: .feed, level: .success)
     }
     
-    // MARK: - Public Methods
+    // MARK: - Data Loading
     
-    /// Performs a full refresh of the feed using the MeTube Hub Server
-    /// This reduces API quota usage by fetching from the server instead of YouTube directly
-    /// Use this on first launch or when user explicitly requests full refresh
-    func fullRefresh(accessToken: String) async {
-        appLog("Starting full refresh via hub server", category: .feed, level: .info)
-        
-        loadingState = .loadingSubscriptions(progress: "")
-        error = nil
-        newVideosCount = 0
+    /// Load all data from local database (non-blocking)
+    private func loadLocalData() async {
+        appLog("Loading data from local database", category: .feed, level: .info)
         
         do {
-            // 1. Check hub server health
-            appLog("Checking hub server health", category: .feed, level: .info)
-            loadingState = .loadingSubscriptions(progress: "Connecting to server...")
-            let health = try await hubServerService.checkHealth()
-            appLog("Hub server healthy - \(health.stats.channels) channels, \(health.stats.videos) videos", category: .feed, level: .success)
+            // Load channels
+            let channelEntities = try channelRepository.fetchAllChannels()
+            channels = channelEntities.map { Channel(from: $0) }
+            channelCache = Dictionary(uniqueKeysWithValues: channelEntities.map { ($0.channelId, $0) })
+            appLog("Loaded \(channels.count) channels from local database", category: .feed, level: .success)
             
-            // 2. Fetch user's subscribed channels from YouTube (still need OAuth for this)
-            appLog("Fetching subscriptions from YouTube", category: .youtube, level: .info)
-            loadingState = .loadingSubscriptions(progress: "Fetching your channels...")
-            let fetchedChannels = try await youtubeService.fetchSubscriptions(accessToken: accessToken)
-            channels = fetchedChannels.sorted { $0.name.lowercased() < $1.name.lowercased() }
-            appLog("Fetched \(channels.count) channels from YouTube", category: .youtube, level: .success)
+            // Load statuses
+            loadingState = .loadingStatuses
+            let statusEntities = try statusRepository.fetchAllStatuses()
+            statusCache = Dictionary(uniqueKeysWithValues: statusEntities.map { ($0.videoId, $0) })
+            appLog("Loaded \(statusEntities.count) statuses from local database", category: .feed, level: .success)
             
-            // Small quota usage for fetching subscriptions only (no video fetching)
-            let subscriptionQuota = (channels.count / 50) + 1 + (channels.count / 50) + 1
-            addQuotaUsage(subscriptionQuota)
-            
-            // 3. Register channels with hub server
-            appLog("Registering channels with hub server", category: .feed, level: .info)
-            loadingState = .loadingSubscriptions(progress: "Registering channels with server...")
-            let channelIds = channels.map { $0.id }
-            try await hubServerService.registerChannels(userId: hubUserId, channelIds: channelIds)
-            appLog("Registered \(channelIds.count) channels with hub server", category: .feed, level: .success)
-            
-            // 4. Start loading video statuses from CloudKit in parallel with hub server operations
-            let statusTask: Task<[String: VideoStatus], Error>? = videoStatusCache.isEmpty ? Task {
-                appLog("Loading video statuses from CloudKit (parallel)", category: .cloudKit, level: .info)
-                let statuses = try await cloudKitService.fetchAllVideoStatuses()
-                appLog("Loaded \(statuses.count) video statuses from CloudKit", category: .cloudKit, level: .success)
-                return statuses
-            } : nil
-            
-            // Store existing video IDs for comparison
-            existingVideoIds = Set(allVideos.map { $0.id })
-            
-            // 5. Fetch videos from hub server (happens in parallel with status loading!)
-            appLog("Fetching videos from hub server", category: .feed, level: .info)
-            loadingState = .loadingStatuses  // Show that we're syncing watch status in parallel
-            let feedResponse = try await hubServerService.fetchFeed(userId: hubUserId, limit: 200)
-            appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
-            
-            // 6. Wait for status loading to complete before converting videos
-            if let statusTask = statusTask {
-                videoStatusCache = try await statusTask.value
-                appLog("Using loaded video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
-            } else {
-                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
+            // Load videos
+            let videoEntities = try videoRepository.fetchAllVideos()
+            allVideos = videoEntities.map { videoEntity in
+                let channel = channelCache[videoEntity.channelId]
+                let status = statusCache[videoEntity.videoId]
+                return Video(from: videoEntity, channel: channel, status: status)
             }
+            appLog("Loaded \(allVideos.count) videos from local database", category: .feed, level: .success)
             
-            // 7. Convert VideoDTO to Video model with channel info
-            var newVideos: [Video] = []
-            var newCount = 0
-            
-            for videoDTO in feedResponse.videos {
-                guard let video = convertVideoDTO(videoDTO) else {
-                    continue
-                }
-                
-                if !existingVideoIds.contains(video.id) {
-                    newCount += 1
-                }
-                
-                newVideos.append(video)
-            }
-            
-            allVideos = newVideos
-            newVideosCount = newCount
             loadingState = .idle
             
-            // Save refresh timestamp and cached data
-            lastRefreshDate = Date()
-            appSettings.lastFullRefreshDate = Date()
-            saveCachedData()
+            // Trigger background sync if needed
+            await syncIfNeeded()
             
-            appLog("Full refresh completed via hub server", category: .feed, level: .success, context: [
-                "totalVideos": allVideos.count,
-                "newVideos": newCount,
-                "channels": channels.count
-            ])
-            
-        } catch let hubError as HubError {
-            appLog("Hub server error during full refresh: \(hubError)", category: .feed, level: .error)
-            self.error = hubError.errorDescription
-            loadingState = .idle
-        } catch let apiError as YouTubeAPIError {
-            appLog("YouTube API error during full refresh: \(apiError)", category: .youtube, level: .error)
-            handleAPIError(apiError)
-            loadingState = .idle
         } catch {
-            appLog("Error during full refresh: \(error)", category: .feed, level: .error)
-            self.error = error.localizedDescription
+            appLog("Error loading data from local database: \(error)", category: .feed, level: .error)
+            self.error = "Failed to load cached data: \(error.localizedDescription)"
             loadingState = .idle
         }
     }
     
-    /// Performs an incremental refresh - fetches only recent videos from hub server
-    /// More efficient than full refresh as it uses the 'since' parameter
-    func incrementalRefresh(accessToken: String) async {
-        appLog("Starting incremental refresh via hub server", category: .feed, level: .info, context: [
-            "cachedChannels": channels.count,
-            "cachedVideos": allVideos.count
-        ])
-        
-        // If we have no data, do a full refresh
-        guard !channels.isEmpty else {
-            appLog("No cached channels - falling back to full refresh", category: .feed, level: .info)
-            await fullRefresh(accessToken: accessToken)
-            return
+    // MARK: - Sync Operations
+    
+    /// Sync data if needed (non-blocking check)
+    func syncIfNeeded() async {
+        do {
+            // Check if hub sync is needed
+            if hubSyncManager.shouldSync() {
+                appLog("Hub sync needed, starting in background", category: .feed, level: .info)
+                Task {
+                    do {
+                        try await hubSyncManager.syncIfNeeded()
+                        await refreshFromDatabase()
+                    } catch {
+                        appLog("Background hub sync failed: \(error)", category: .feed, level: .error)
+                    }
+                }
+            }
+            
+            // Check if status sync is needed
+            if statusSyncManager.shouldSync() {
+                appLog("Status sync needed, starting in background", category: .feed, level: .info)
+                Task {
+                    do {
+                        try await statusSyncManager.syncIfNeeded()
+                        await refreshFromDatabase()
+                    } catch {
+                        appLog("Background status sync failed: \(error)", category: .feed, level: .error)
+                    }
+                }
+            }
         }
+    }
+    
+    // MARK: - Refresh Operations
+    
+    /// Full refresh from YouTube and hub server
+    func fullRefresh(accessToken: String) async {
+        appLog("Starting full refresh", category: .feed, level: .info)
         
-        // Check if we need a full refresh (once per day)
-        if shouldDoFullRefresh() {
-            appLog("Full refresh interval exceeded - doing full refresh", category: .feed, level: .info)
-            await fullRefresh(accessToken: accessToken)
-            return
-        }
-        
-        appLog("Proceeding with incremental refresh via hub server", category: .feed, level: .info)
         loadingState = .refreshing
         error = nil
         newVideosCount = 0
         
         do {
-            // Store existing video IDs for comparison
-            existingVideoIds = Set(allVideos.map { $0.id })
-            appLog("Existing video IDs count: \(existingVideoIds.count)", category: .feed, level: .debug)
+            // Store existing video count for comparison
+            let existingCount = allVideos.count
             
-            // Fetch only recent videos from hub server using 'since' parameter
-            let sinceDate = lastRefreshDate ?? Date.distantPast
-            appLog("Fetching videos since \(sinceDate)", category: .feed, level: .info)
-            let feedResponse = try await hubServerService.fetchFeed(
-                userId: hubUserId,
-                since: sinceDate,
-                limit: 100
-            )
-            appLog("Fetched \(feedResponse.videos.count) videos from hub server", category: .feed, level: .success)
-            
-            // Load video statuses only if not cached
-            if videoStatusCache.isEmpty {
-                appLog("Loading video statuses from CloudKit", category: .cloudKit, level: .info)
-                videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-                appLog("Loaded \(videoStatusCache.count) video statuses", category: .cloudKit, level: .success)
-            } else {
-                appLog("Using cached video statuses (\(videoStatusCache.count))", category: .cloudKit, level: .info)
-            }
-            
-            // Convert VideoDTO to Video model and merge with existing
-            var videoDict: [String: Video] = [:]
-            for video in allVideos {
-                videoDict[video.id] = video
-            }
-            
-            var newCount = 0
-            for videoDTO in feedResponse.videos {
-                guard let video = convertVideoDTO(videoDTO) else {
-                    continue
-                }
-                
-                if videoDict[video.id] == nil {
-                    newCount += 1
-                }
-                videoDict[video.id] = video
-            }
-            
-            allVideos = Array(videoDict.values)
+            // Perform sync (includes channel registration and feed fetch)
+            let newCount = try await hubSyncManager.performSync(accessToken: accessToken)
             newVideosCount = newCount
-            loadingState = .idle
             
-            // Save refresh timestamp and cached data
+            // Perform status sync
+            _ = try await statusSyncManager.performSync()
+            
+            // Reload from database
+            await refreshFromDatabase()
+            
             lastRefreshDate = Date()
-            saveCachedData()
-            
-            appLog("Incremental refresh completed via hub server", category: .feed, level: .success, context: [
-                "totalVideos": allVideos.count,
-                "newVideos": newCount
-            ])
-            
-        } catch let hubError as HubError {
-            appLog("Hub server error during incremental refresh: \(hubError)", category: .feed, level: .error)
-            self.error = hubError.errorDescription
             loadingState = .idle
-        } catch let apiError as YouTubeAPIError {
-            appLog("YouTube API error during incremental refresh: \(apiError)", category: .youtube, level: .error)
-            handleAPIError(apiError)
-            loadingState = .idle
+            
+            appLog("Full refresh completed - \(newVideosCount) new videos", category: .feed, level: .success)
+            
         } catch {
-            appLog("Error during incremental refresh: \(error)", category: .feed, level: .error)
+            appLog("Full refresh failed: \(error)", category: .feed, level: .error)
             self.error = error.localizedDescription
             loadingState = .idle
         }
     }
     
-    /// Refreshes the feed - uses incremental if data exists, full otherwise
-    func refreshFeed(accessToken: String) async {
-        appLog("refreshFeed called", category: .feed, level: .info, context: [
-            "hasVideos": !allVideos.isEmpty,
-            "hasChannels": !channels.isEmpty,
-            "videoCount": allVideos.count,
-            "channelCount": channels.count
-        ])
+    /// Incremental refresh (fetch new videos only)
+    func incrementalRefresh(accessToken: String) async {
+        appLog("Starting incremental refresh", category: .feed, level: .info)
         
-        if allVideos.isEmpty || channels.isEmpty {
-            appLog("No cached data - will do full refresh", category: .feed, level: .info)
+        loadingState = .refreshing
+        error = nil
+        
+        do {
+            // Perform incremental sync
+            let newCount = try await hubSyncManager.syncIfNeeded()
+            newVideosCount = newCount
+            
+            // Sync statuses
+            _ = try await statusSyncManager.syncIfNeeded()
+            
+            // Reload from database
+            await refreshFromDatabase()
+            
+            lastRefreshDate = Date()
+            loadingState = .idle
+            
+            appLog("Incremental refresh completed - \(newVideosCount) new videos", category: .feed, level: .success)
+            
+        } catch {
+            appLog("Incremental refresh failed: \(error)", category: .feed, level: .error)
+            self.error = error.localizedDescription
+            loadingState = .idle
+        }
+    }
+    
+    /// Refresh feed (decides between full and incremental)
+    func refreshFeed(accessToken: String) async {
+        // If we have no videos, do a full refresh
+        if allVideos.isEmpty {
             await fullRefresh(accessToken: accessToken)
         } else {
-            appLog("Cached data exists - will do incremental refresh", category: .feed, level: .info)
             await incrementalRefresh(accessToken: accessToken)
         }
     }
     
-    /// Forces a full refresh regardless of existing data
+    /// Force a full refresh regardless of timing
     func forceFullRefresh(accessToken: String) async {
-        appLog("Force full refresh requested", category: .feed, level: .info)
         await fullRefresh(accessToken: accessToken)
     }
     
-    /// Starts background loading of video statuses
-    /// Cancels any existing status load task before starting a new one
-    private func startBackgroundStatusLoad() {
-        loadStatusTask?.cancel()
-        loadStatusTask = Task {
-            await loadVideoStatusesInBackground()
-        }
-    }
-    
-    /// Loads video statuses in the background without blocking the UI
-    /// This is called after cached videos are loaded to update their statuses
-    private func loadVideoStatusesInBackground() async {
-        appLog("Loading video statuses in background", category: .cloudKit, level: .info)
+    /// Refresh local data from database
+    private func refreshFromDatabase() async {
         do {
-            videoStatusCache = try await cloudKitService.fetchAllVideoStatuses()
-            appLog("Fetched \(videoStatusCache.count) video statuses from CloudKit", category: .cloudKit, level: .success)
+            // Reload channels
+            let channelEntities = try channelRepository.fetchAllChannels()
+            channels = channelEntities.map { Channel(from: $0) }
+            channelCache = Dictionary(uniqueKeysWithValues: channelEntities.map { ($0.channelId, $0) })
             
-            // Apply cached statuses to existing videos
-            var updatedCount = 0
-            for i in 0..<allVideos.count {
-                if let cachedStatus = videoStatusCache[allVideos[i].id] {
-                    allVideos[i].status = cachedStatus
-                    updatedCount += 1
-                }
+            // Reload statuses
+            let statusEntities = try statusRepository.fetchAllStatuses()
+            statusCache = Dictionary(uniqueKeysWithValues: statusEntities.map { ($0.videoId, $0) })
+            
+            // Reload videos with updated statuses and channels
+            let videoEntities = try videoRepository.fetchAllVideos()
+            allVideos = videoEntities.map { videoEntity in
+                let channel = channelCache[videoEntity.channelId]
+                let status = statusCache[videoEntity.videoId]
+                return Video(from: videoEntity, channel: channel, status: status)
             }
-            appLog("Applied \(updatedCount) status updates to videos", category: .cloudKit, level: .info)
+            
+            appLog("Refreshed data from database - \(allVideos.count) videos", category: .feed, level: .success)
         } catch {
-            appLog("Error loading video statuses: \(error)", category: .cloudKit, level: .error)
+            appLog("Error refreshing from database: \(error)", category: .feed, level: .error)
         }
     }
     
-    /// Loads only video statuses from CloudKit (for when videos are already loaded)
-    /// This is a public method that can be called when needed (e.g., returning from background)
+    // MARK: - Status Management
+    
+    /// Load video statuses (for backward compatibility)
     func loadVideoStatuses() async {
-        // Only load if we don't have statuses cached or if videos exist
-        guard !allVideos.isEmpty else {
-            appLog("No videos to load statuses for", category: .cloudKit, level: .debug)
-            return
-        }
-        
-        // Don't reload if we already have a recent status cache
-        guard videoStatusCache.isEmpty else {
-            appLog("Video statuses already cached, skipping reload", category: .cloudKit, level: .debug)
-            return
-        }
-        
-        await loadVideoStatusesInBackground()
+        // Statuses are loaded automatically, so this is a no-op in the new architecture
+        appLog("loadVideoStatuses called (no-op in offline-first mode)", category: .feed, level: .debug)
     }
     
     /// Marks a video as watched
@@ -636,21 +324,34 @@ class FeedViewModel: ObservableObject {
         await updateVideoStatus(video, newStatus: .unwatched)
     }
     
-    /// Updates video status locally and in CloudKit
+    /// Updates video status locally (will be synced later)
     private func updateVideoStatus(_ video: Video, newStatus: VideoStatus) async {
-        // Find and update the video in our array
-        if let index = allVideos.firstIndex(where: { $0.id == video.id }) {
-            allVideos[index].status = newStatus
+        do {
+            // Update in repository
+            try statusRepository.updateStatus(
+                forVideoId: video.id,
+                status: newStatus.toWatchStatus(),
+                synced: false
+            )
             
-            // Update cache
-            videoStatusCache[video.id] = newStatus
-            
-            // Save to CloudKit
-            do {
-                try await cloudKitService.saveVideoStatus(allVideos[index])
-            } catch {
-                print("Error saving video status to CloudKit: \(error)")
+            // Update local cache
+            if let index = allVideos.firstIndex(where: { $0.id == video.id }) {
+                allVideos[index].status = newStatus
             }
+            
+            // Trigger background sync
+            Task {
+                do {
+                    try await statusSyncManager.syncIfNeeded()
+                } catch {
+                    appLog("Background status sync failed: \(error)", category: .cloudKit, level: .error)
+                }
+            }
+            
+            appLog("Updated video status locally: \(video.id) -> \(newStatus)", category: .feed, level: .success)
+        } catch {
+            appLog("Error updating video status: \(error)", category: .feed, level: .error)
+            self.error = "Failed to update video status"
         }
     }
     
@@ -663,131 +364,53 @@ class FeedViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Utility
+    
     /// Clears error message
     func clearError() {
         error = nil
     }
     
-    /// Resets the new videos count (call after user has seen the notification)
+    /// Resets the new videos count
     func clearNewVideosCount() {
         newVideosCount = 0
     }
     
-    // MARK: - Quota Management
+    // MARK: - Background Operations
     
-    private func addQuotaUsage(_ units: Int) {
-        quotaInfo.usedToday += units
-        // Quota changes will be saved when saveCachedData is called
-    }
-    
-    private func shouldResetQuota(lastResetDate: Date) -> Bool {
-        // YouTube quota resets at midnight Pacific Time
-        let pacificTimeZone = TimeZone(identifier: "America/Los_Angeles")!
-        var calendar = Calendar.current
-        calendar.timeZone = pacificTimeZone
+    /// Perform background refresh
+    func performBackgroundRefresh(accessToken: String) async -> Bool {
+        appLog("Performing background refresh", category: .feed, level: .info)
         
-        let lastResetDay = calendar.startOfDay(for: lastResetDate)
-        let today = calendar.startOfDay(for: Date())
-        
-        return today > lastResetDay
-    }
-    
-    private func nextQuotaResetDate() -> Date {
-        let pacificTimeZone = TimeZone(identifier: "America/Los_Angeles")!
-        var calendar = Calendar.current
-        calendar.timeZone = pacificTimeZone
-        
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
-        return calendar.startOfDay(for: tomorrow)
-    }
-    
-    // MARK: - Refresh Timing
-    
-    private func shouldDoFullRefresh() -> Bool {
-        guard let lastFullRefresh = appSettings.lastFullRefreshDate else {
-            return true
-        }
-        return Date().timeIntervalSince(lastFullRefresh) > FeedConfig.fullRefreshInterval
-    }
-    
-    // MARK: - Error Handling
-    
-    private func handleAPIError(_ apiError: YouTubeAPIError) {
-        switch apiError {
-        case .quotaExceeded:
-            // Mark quota as exceeded
-            quotaInfo.usedToday = FeedConfig.dailyQuotaLimit
-            error = "YouTube API quota exceeded. The quota resets at midnight Pacific Time. Your existing videos are still available."
-        case .unauthorized:
-            error = "Authentication expired. Please sign in again."
-        case .networkError:
-            error = "Network error. Please check your connection and try again."
-        default:
-            error = apiError.errorDescription
+        do {
+            // Perform incremental sync
+            let newCount = try await hubSyncManager.syncIfNeeded()
+            _ = try await statusSyncManager.syncIfNeeded()
+            
+            if newCount > 0 {
+                await refreshFromDatabase()
+                newVideosCount = newCount
+                appLog("Background refresh completed - \(newCount) new videos", category: .feed, level: .success)
+                return true
+            }
+            
+            return false
+        } catch {
+            appLog("Background refresh failed: \(error)", category: .feed, level: .error)
+            return false
         }
     }
     
-    // MARK: - Background Refresh
-    
-    /// Schedules a background refresh
-    nonisolated func scheduleBackgroundRefresh() {
+    /// Schedule background refresh
+    func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: FeedConfig.backgroundTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: FeedConfig.backgroundRefreshInterval)
         
         do {
             try BGTaskScheduler.shared.submit(request)
-            print("Background refresh scheduled")
+            appLog("Scheduled background refresh", category: .feed, level: .info)
         } catch {
-            print("Failed to schedule background refresh: \(error)")
-        }
-    }
-    
-    /// Performs a background refresh (called from background task handler)
-    /// Uses hub server to fetch only very recent videos
-    func performBackgroundRefresh(accessToken: String) async -> Bool {
-        appLog("Starting background refresh via hub server", category: .feed, level: .info)
-        
-        loadingState = .backgroundRefreshing
-        
-        do {
-            // Fetch only very recent videos from hub server
-            let sinceDate = Date().addingTimeInterval(-FeedConfig.backgroundRefreshWindow)
-            let feedResponse = try await hubServerService.fetchFeed(
-                userId: hubUserId,
-                since: sinceDate,
-                limit: 20
-            )
-            
-            // Merge new videos
-            let existingIds = Set(allVideos.map { $0.id })
-            var newCount = 0
-            
-            for videoDTO in feedResponse.videos {
-                // Skip if we already have this video
-                if existingIds.contains(videoDTO.videoId) {
-                    continue
-                }
-                
-                guard let video = convertVideoDTO(videoDTO) else {
-                    continue
-                }
-                
-                allVideos.append(video)
-                newCount += 1
-            }
-            
-            newVideosCount += newCount
-            loadingState = .idle
-            lastRefreshDate = Date()
-            saveCachedData()
-            
-            appLog("Background refresh completed - found \(newCount) new videos", category: .feed, level: .success)
-            return newCount > 0
-            
-        } catch {
-            appLog("Background refresh failed: \(error)", category: .feed, level: .error)
-            loadingState = .idle
-            return false
+            appLog("Failed to schedule background refresh: \(error)", category: .feed, level: .error)
         }
     }
 }
