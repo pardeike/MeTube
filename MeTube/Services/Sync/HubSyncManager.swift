@@ -220,7 +220,7 @@ class HubSyncManager {
     private func fetchFeedPage(since: Date?, cursor: String?, accessToken: String?) async throws -> FeedResponse {
         // Use retry logic with exponential backoff
         var lastError: Error?
-        var retryCount = 0
+        var hasAttemptedReregistration = false
         
         for attempt in 0..<HubSyncConfig.maxRetries {
             do {
@@ -236,8 +236,8 @@ class HubSyncManager {
                 appLog("User not found on hub server, attempting re-registration", category: .feed, level: .warning)
                 
                 // Only retry once to avoid infinite loop
-                if retryCount == 0, let token = accessToken {
-                    retryCount += 1
+                if !hasAttemptedReregistration, let token = accessToken {
+                    hasAttemptedReregistration = true
                     
                     do {
                         // Fetch channel IDs from local database
