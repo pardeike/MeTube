@@ -43,6 +43,9 @@ class StatusSyncManager {
     private let privateDatabase: CKDatabase
     private let userId: String
     
+    /// Concurrency guard to prevent overlapping syncs
+    private var isSyncing = false
+    
     /// Last time the status was synced
     private var lastStatusSync: Date? {
         get {
@@ -105,6 +108,12 @@ class StatusSyncManager {
     /// Perform sync if needed (non-blocking check)
     /// - Returns: Tuple of (pulled: Int, pushed: Int) representing number of statuses synced, or (0, 0) if sync was not needed
     func syncIfNeeded() async throws -> (pulled: Int, pushed: Int) {
+        // Check if already syncing
+        guard !isSyncing else {
+            appLog("Status sync already in progress, skipping", category: .cloudKit, level: .debug)
+            return (0, 0)
+        }
+        
         // Check iCloud availability first
         guard await cloudKitService.checkiCloudStatus() else {
             appLog("iCloud not available, skipping status sync", category: .cloudKit, level: .warning)
@@ -122,7 +131,19 @@ class StatusSyncManager {
     /// Perform a full sync operation (pull then push)
     @discardableResult
     func performSync() async throws -> (pulled: Int, pushed: Int) {
+        // Check if already syncing
+        guard !isSyncing else {
+            appLog("Status sync already in progress, skipping", category: .cloudKit, level: .debug)
+            return (0, 0)
+        }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
         appLog("Starting status sync with CloudKit", category: .cloudKit, level: .info)
+        
+        // 0. Ensure CloudKit zone exists before pulling
+        try await ensureZoneExists()
         
         // 1. Pull changes from CloudKit
         let pulledCount = try await pullChangesFromCloudKit()
@@ -136,6 +157,79 @@ class StatusSyncManager {
         appLog("Status sync completed - pulled \(pulledCount), pushed \(pushedCount)", category: .cloudKit, level: .success)
         
         return (pulled: pulledCount, pushed: pushedCount)
+    }
+    
+    // MARK: - CloudKit Zone Management
+    
+    /// Ensure the CloudKit zone exists, creating it if necessary
+    private func ensureZoneExists() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: StatusSyncConfig.zoneName)
+        
+        // Check if zone exists by attempting to fetch it
+        return try await withCheckedThrowingContinuation { continuation in
+            let operation = CKFetchRecordZonesOperation(recordZoneIDs: [zoneID])
+            
+            operation.fetchRecordZonesResultBlock = { result in
+                switch result {
+                case .success(let zones):
+                    if zones[zoneID] != nil {
+                        appLog("CloudKit zone already exists", category: .cloudKit, level: .debug)
+                        continuation.resume()
+                    } else {
+                        // Zone doesn't exist, create it
+                        Task {
+                            do {
+                                try await self.createZone()
+                                continuation.resume()
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    }
+                case .failure(let error):
+                    // If zone not found error, create the zone
+                    if let ckError = error as? CKError, ckError.code == .zoneNotFound {
+                        appLog("CloudKit zone not found, creating it", category: .cloudKit, level: .info)
+                        Task {
+                            do {
+                                try await self.createZone()
+                                continuation.resume()
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    } else {
+                        appLog("Failed to check zone existence: \(error)", category: .cloudKit, level: .error)
+                        continuation.resume(throwing: CloudKitError.networkError(error))
+                    }
+                }
+            }
+            
+            privateDatabase.add(operation)
+        }
+    }
+    
+    /// Create the CloudKit zone for status sync
+    private func createZone() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: StatusSyncConfig.zoneName)
+        let zone = CKRecordZone(zoneID: zoneID)
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let operation = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
+            
+            operation.modifyRecordZonesResultBlock = { result in
+                switch result {
+                case .success:
+                    appLog("Successfully created CloudKit zone", category: .cloudKit, level: .success)
+                    continuation.resume()
+                case .failure(let error):
+                    appLog("Failed to create CloudKit zone: \(error)", category: .cloudKit, level: .error)
+                    continuation.resume(throwing: CloudKitError.networkError(error))
+                }
+            }
+            
+            privateDatabase.add(operation)
+        }
     }
     
     // MARK: - Pull from CloudKit
@@ -176,7 +270,12 @@ class StatusSyncManager {
             case .success(let (token, _, _)):
                 newChangeToken = token
             case .failure(let error):
-                appLog("Error fetching zone changes: \(error)", category: .cloudKit, level: .error)
+                // Handle zone not found error gracefully (shouldn't happen after ensureZoneExists, but be safe)
+                if let ckError = error as? CKError, ckError.code == .zoneNotFound {
+                    appLog("Zone not found during fetch - will be created on next sync", category: .cloudKit, level: .warning)
+                } else {
+                    appLog("Error fetching zone changes: \(error)", category: .cloudKit, level: .error)
+                }
             }
         }
         

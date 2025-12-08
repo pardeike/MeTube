@@ -14,8 +14,8 @@ enum HubSyncConfig {
     /// Minimum interval between syncs (in seconds)
     static let minimumSyncInterval: TimeInterval = 60 * 60 // 1 hour
     
-    /// Number of videos to fetch per page
-    static let pageLimit = 200
+    /// Number of videos to fetch per page (reduced from 200 for better reliability)
+    static let pageLimit = 100
     
     /// Maximum number of retry attempts
     static let maxRetries = 3
@@ -35,6 +35,9 @@ class HubSyncManager {
     private let hubServerService: HubServerService
     private let youtubeService: YouTubeService
     private let userId: String
+    
+    /// Concurrency guard to prevent overlapping syncs
+    private var isSyncing = false
     
     /// Last time the feed was synced
     private var lastFeedSync: Date? {
@@ -84,6 +87,12 @@ class HubSyncManager {
     /// Perform sync if needed (non-blocking check)
     /// - Returns: Number of new videos added, or 0 if sync was not needed
     func syncIfNeeded() async throws -> Int {
+        // Check if already syncing
+        guard !isSyncing else {
+            appLog("Sync already in progress, skipping", category: .feed, level: .debug)
+            return 0
+        }
+        
         guard shouldSync() else {
             appLog("Sync not needed at this time", category: .feed, level: .debug)
             return 0
@@ -97,6 +106,15 @@ class HubSyncManager {
     /// - Returns: Number of new videos added
     @discardableResult
     func performSync(accessToken: String? = nil) async throws -> Int {
+        // Check if already syncing
+        guard !isSyncing else {
+            appLog("Sync already in progress, skipping", category: .feed, level: .debug)
+            return 0
+        }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
         appLog("Starting hub sync", category: .feed, level: .info)
         
         // 1. Check hub server health
@@ -104,14 +122,19 @@ class HubSyncManager {
         let health = try await hubServerService.checkHealth()
         appLog("Hub server healthy - \(health.stats.channels) channels, \(health.stats.videos) videos", category: .feed, level: .success)
         
-        // 2. Register channels if we have an access token and no channels yet
+        // 2. Register channels if server has no channels (regardless of local count)
+        //    or if we have an access token and no local channels yet
         let channelCount = try channelRepository.count()
-        if channelCount == 0, let token = accessToken {
+        if health.stats.channels == 0, let token = accessToken {
+            // Server has no channels - register even if local DB has channels
+            try await registerChannels(accessToken: token)
+        } else if channelCount == 0, let token = accessToken {
+            // Local DB empty - initial registration
             try await registerChannels(accessToken: token)
         }
         
         // 3. Perform incremental or full feed fetch
-        let newVideosCount = try await fetchFeed()
+        let newVideosCount = try await fetchFeed(accessToken: accessToken)
         
         // 4. Update last sync timestamp
         lastFeedSync = Date()
@@ -153,7 +176,7 @@ class HubSyncManager {
     // MARK: - Feed Fetch
     
     /// Fetch feed from hub server (incremental or full)
-    private func fetchFeed() async throws -> Int {
+    private func fetchFeed(accessToken: String?) async throws -> Int {
         // Determine if we should use incremental sync
         let since = lastFeedSync
         
@@ -172,7 +195,7 @@ class HubSyncManager {
             pageCount += 1
             appLog("Fetching feed page \(pageCount)", category: .feed, level: .debug)
             
-            let response = try await fetchFeedPage(since: since, cursor: cursor)
+            let response = try await fetchFeedPage(since: since, cursor: cursor, accessToken: accessToken)
             allVideos.append(contentsOf: response.videos)
             cursor = response.nextCursor
             
@@ -194,9 +217,10 @@ class HubSyncManager {
     }
     
     /// Fetch a single page of feed
-    private func fetchFeedPage(since: Date?, cursor: String?) async throws -> FeedResponse {
+    private func fetchFeedPage(since: Date?, cursor: String?, accessToken: String?) async throws -> FeedResponse {
         // Use retry logic with exponential backoff
         var lastError: Error?
+        var retryCount = 0
         
         for attempt in 0..<HubSyncConfig.maxRetries {
             do {
@@ -208,9 +232,37 @@ class HubSyncManager {
                 )
                 return response
             } catch let error as HubError where error == .userNotFound {
-                // User not found - need to re-register channels
-                appLog("User not found on hub server, re-registration needed", category: .feed, level: .warning)
-                throw error
+                // User not found - attempt to re-register channels
+                appLog("User not found on hub server, attempting re-registration", category: .feed, level: .warning)
+                
+                // Only retry once to avoid infinite loop
+                if retryCount == 0, let token = accessToken {
+                    retryCount += 1
+                    
+                    do {
+                        // Fetch channel IDs from local database
+                        let channels = try channelRepository.fetchAllChannels()
+                        let channelIds = channels.map { $0.channelId }
+                        
+                        if !channelIds.isEmpty {
+                            appLog("Re-registering \(channelIds.count) channels with hub server", category: .feed, level: .info)
+                            try await hubServerService.registerChannels(userId: userId, channelIds: channelIds)
+                            appLog("Re-registration successful, retrying feed fetch", category: .feed, level: .success)
+                            
+                            // Retry the feed fetch after successful re-registration
+                            continue
+                        } else {
+                            appLog("No channels found in local database to re-register", category: .feed, level: .warning)
+                            throw error
+                        }
+                    } catch {
+                        appLog("Re-registration failed: \(error)", category: .feed, level: .error)
+                        throw error
+                    }
+                } else {
+                    appLog("Cannot re-register: no access token or already attempted", category: .feed, level: .error)
+                    throw error
+                }
             } catch {
                 lastError = error
                 

@@ -221,27 +221,30 @@ final class HubServerService: Sendable {
     func registerChannels(userId: String, channelIds: [String]) async throws {
         appLog("Registering \(channelIds.count) channels for user \(userId)", category: .feed, level: .info)
         
-        guard let url = URL(string: "\(baseURL)/api/users/\(userId)/channels") else {
-            throw HubError.invalidURL
+        // Use retry logic for channel registration to handle network timeouts
+        try await fetchWithRetry { [self] in
+            guard let url = URL(string: "\(baseURL)/api/users/\(userId)/channels") else {
+                throw HubError.invalidURL
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let body = RegisterChannelsRequest(channelIds: channelIds)
+            request.httpBody = try JSONEncoder().encode(body)
+            
+            let (data, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                appLog("Channel registration failed", category: .feed, level: .error)
+                throw HubError.registrationFailed
+            }
+            
+            let result = try JSONDecoder().decode(RegisterChannelsResponse.self, from: data)
+            appLog("Channel registration successful: \(result.message)", category: .feed, level: .success)
         }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body = RegisterChannelsRequest(channelIds: channelIds)
-        request.httpBody = try JSONEncoder().encode(body)
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            appLog("Channel registration failed", category: .feed, level: .error)
-            throw HubError.registrationFailed
-        }
-        
-        let result = try JSONDecoder().decode(RegisterChannelsResponse.self, from: data)
-        appLog("Channel registration successful: \(result.message)", category: .feed, level: .success)
     }
     
     // MARK: - Feed Fetching
