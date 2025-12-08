@@ -44,7 +44,10 @@ class ChannelRepository {
     @discardableResult
     func saveChannel(_ channel: ChannelEntity) throws -> ChannelEntity {
         // Check if channel already exists
-        if let existingChannel = try? fetchChannel(byId: channel.channelId) {
+        // Don't use try? here - we need to know if the fetch actually failed
+        let existingChannel = try fetchChannel(byId: channel.channelId)
+        
+        if let existingChannel = existingChannel {
             // Update existing channel
             existingChannel.name = channel.name
             existingChannel.thumbnailURL = channel.thumbnailURL
