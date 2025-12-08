@@ -94,7 +94,6 @@ Removed `@Attribute(.unique)` from all three SwiftData entities:
 - **Zone Creation**: Added `ensureZoneExists()` method to check for zone existence before pulling changes
 - **Auto Zone Creation**: Added `createZone()` method that creates the custom CloudKit record zone if it doesn't exist
 - **Enhanced Error Handling**: Improved zone not found error handling in pull operations
-- **Enhanced Error Handling**: Improved zone not found error handling in pull operations
 
 ## Why This Is Safe
 

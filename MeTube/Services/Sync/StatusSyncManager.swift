@@ -165,43 +165,38 @@ class StatusSyncManager {
     private func ensureZoneExists() async throws {
         let zoneID = CKRecordZone.ID(zoneName: StatusSyncConfig.zoneName)
         
-        // Check if zone exists by attempting to fetch it
+        // First, check if zone exists
+        do {
+            let zoneExists = try await checkZoneExists(zoneID: zoneID)
+            if zoneExists {
+                appLog("CloudKit zone already exists", category: .cloudKit, level: .debug)
+                return
+            }
+        } catch {
+            // If we get a zone not found error or any error, try to create the zone
+            appLog("Zone check failed or zone not found, will create zone", category: .cloudKit, level: .info)
+        }
+        
+        // Zone doesn't exist, create it
+        try await createZone()
+    }
+    
+    /// Check if CloudKit zone exists
+    private func checkZoneExists(zoneID: CKRecordZone.ID) async throws -> Bool {
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKFetchRecordZonesOperation(recordZoneIDs: [zoneID])
+            var continuationResumed = false
             
             operation.fetchRecordZonesResultBlock = { result in
+                guard !continuationResumed else { return }
+                continuationResumed = true
+                
                 switch result {
                 case .success(let zones):
-                    if zones[zoneID] != nil {
-                        appLog("CloudKit zone already exists", category: .cloudKit, level: .debug)
-                        continuation.resume()
-                    } else {
-                        // Zone doesn't exist, create it
-                        Task {
-                            do {
-                                try await self.createZone()
-                                continuation.resume()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    }
+                    continuation.resume(returning: zones[zoneID] != nil)
                 case .failure(let error):
-                    // If zone not found error, create the zone
-                    if let ckError = error as? CKError, ckError.code == .zoneNotFound {
-                        appLog("CloudKit zone not found, creating it", category: .cloudKit, level: .info)
-                        Task {
-                            do {
-                                try await self.createZone()
-                                continuation.resume()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    } else {
-                        appLog("Failed to check zone existence: \(error)", category: .cloudKit, level: .error)
-                        continuation.resume(throwing: CloudKitError.networkError(error))
-                    }
+                    appLog("Failed to check zone existence: \(error)", category: .cloudKit, level: .debug)
+                    continuation.resume(throwing: error)
                 }
             }
             
@@ -216,8 +211,12 @@ class StatusSyncManager {
         
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
+            var continuationResumed = false
             
             operation.modifyRecordZonesResultBlock = { result in
+                guard !continuationResumed else { return }
+                continuationResumed = true
+                
                 switch result {
                 case .success:
                     appLog("Successfully created CloudKit zone", category: .cloudKit, level: .success)
