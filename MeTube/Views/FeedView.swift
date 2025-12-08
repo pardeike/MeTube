@@ -36,9 +36,13 @@ struct FeedView: View {
                                 ])
                                 selectedVideo = video
                             },
-                            onMarkWatched: { video in
+                            onToggleWatched: { video in
                                 Task {
-                                    await feedViewModel.markAsWatched(video)
+                                    if video.status == .watched {
+                                        await feedViewModel.markAsUnwatched(video)
+                                    } else {
+                                        await feedViewModel.markAsWatched(video)
+                                    }
                                 }
                             },
                             onMarkSkipped: { video in
@@ -445,7 +449,7 @@ struct EmptyFeedView: View {
 struct VideoListView: View {
     let videos: [Video]
     let onVideoTap: (Video) -> Void
-    let onMarkWatched: (Video) -> Void
+    let onToggleWatched: (Video) -> Void
     let onMarkSkipped: (Video) -> Void
     
     var body: some View {
@@ -471,17 +475,26 @@ struct VideoListView: View {
                     }
                     .swipeActions(edge: .leading) {
                         Button {
-                            onMarkWatched(video)
+                            // Toggle between watched and unwatched
+                            onToggleWatched(video)
                         } label: {
-                            Label("Watched", systemImage: "checkmark")
+                            if video.status == .watched {
+                                Label("Unwatch", systemImage: "arrow.uturn.backward")
+                            } else {
+                                Label("Watched", systemImage: "checkmark")
+                            }
                         }
-                        .tint(.green)
+                        .tint(video.status == .watched ? .gray : .green)
                     }
                     .contextMenu {
                         Button {
-                            onMarkWatched(video)
+                            onToggleWatched(video)
                         } label: {
-                            Label("Mark as Watched", systemImage: "checkmark.circle")
+                            if video.status == .watched {
+                                Label("Mark as Unwatched", systemImage: "arrow.uturn.backward.circle")
+                            } else {
+                                Label("Mark as Watched", systemImage: "checkmark.circle")
+                            }
                         }
                         
                         Button {
