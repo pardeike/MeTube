@@ -126,11 +126,7 @@ class HubSyncManager {
         // 2. Register channels if server has no channels (regardless of local count)
         //    or if we have an access token and no local channels yet
         let channelCount = try channelRepository.count()
-        if health.stats.channels == 0, let token = accessToken {
-            // Server has no channels - register even if local DB has channels
-            try await registerChannels(accessToken: token)
-        } else if channelCount == 0, let token = accessToken {
-            // Local DB empty - initial registration
+        if (health.stats.channels == 0 || channelCount == 0), let token = accessToken {
             try await registerChannels(accessToken: token)
         }
         

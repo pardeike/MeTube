@@ -186,12 +186,8 @@ class StatusSyncManager {
     private func checkZoneExists(zoneID: CKRecordZone.ID) async throws -> Bool {
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKFetchRecordZonesOperation(recordZoneIDs: [zoneID])
-            var continuationResumed = false
             
             operation.fetchRecordZonesResultBlock = { result in
-                guard !continuationResumed else { return }
-                continuationResumed = true
-                
                 switch result {
                 case .success(let zones):
                     continuation.resume(returning: zones[zoneID] != nil)
@@ -212,12 +208,8 @@ class StatusSyncManager {
         
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKModifyRecordZonesOperation(recordZonesToSave: [zone], recordZoneIDsToDelete: nil)
-            var continuationResumed = false
             
             operation.modifyRecordZonesResultBlock = { result in
-                guard !continuationResumed else { return }
-                continuationResumed = true
-                
                 switch result {
                 case .success:
                     appLog("Successfully created CloudKit zone", category: .cloudKit, level: .success)
