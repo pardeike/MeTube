@@ -269,6 +269,7 @@ struct VideoPlayerView: View {
     private func loadVideo() {
         appLog("loadVideo() called for video: \(video.id)", category: .player, level: .info)
         loadingState = .extracting
+        currentPlaybackTime = 0 // Reset playback time for new video
         appLog("Loading state set to: extracting", category: .player, level: .debug)
         
         Task { @MainActor in
