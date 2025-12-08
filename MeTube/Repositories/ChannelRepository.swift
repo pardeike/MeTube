@@ -65,7 +65,17 @@ class ChannelRepository {
     
     /// Save multiple channels in a batch
     func saveChannels(_ channels: [ChannelEntity]) throws {
-        for channel in channels {
+        // Deduplicate channels by channelId to prevent inserting duplicates
+        var seenIds = Set<String>()
+        let uniqueChannels = channels.filter { channel in
+            if seenIds.contains(channel.channelId) {
+                return false
+            }
+            seenIds.insert(channel.channelId)
+            return true
+        }
+        
+        for channel in uniqueChannels {
             try saveChannel(channel)
         }
     }

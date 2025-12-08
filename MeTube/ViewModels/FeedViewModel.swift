@@ -194,13 +194,15 @@ class FeedViewModel: ObservableObject {
             // Load channels
             let channelEntities = try channelRepository.fetchAllChannels()
             channels = channelEntities.map { Channel(from: $0) }
-            channelCache = Dictionary(uniqueKeysWithValues: channelEntities.map { ($0.channelId, $0) })
+            // Handle potential duplicates after removing unique constraints - keep last value
+            channelCache = channelEntities.reduce(into: [:]) { $0[$1.channelId] = $1 }
             appLog("Loaded \(channels.count) channels from local database", category: .feed, level: .success)
             
             // Load statuses
             loadingState = .loadingStatuses
             let statusEntities = try statusRepository.fetchAllStatuses()
-            statusCache = Dictionary(uniqueKeysWithValues: statusEntities.map { ($0.videoId, $0) })
+            // Handle potential duplicates after removing unique constraints - keep last value
+            statusCache = statusEntities.reduce(into: [:]) { $0[$1.videoId] = $1 }
             appLog("Loaded \(statusEntities.count) statuses from local database", category: .feed, level: .success)
             
             // Load videos
@@ -341,11 +343,13 @@ class FeedViewModel: ObservableObject {
             // Reload channels
             let channelEntities = try channelRepository.fetchAllChannels()
             channels = channelEntities.map { Channel(from: $0) }
-            channelCache = Dictionary(uniqueKeysWithValues: channelEntities.map { ($0.channelId, $0) })
+            // Handle potential duplicates after removing unique constraints - keep last value
+            channelCache = channelEntities.reduce(into: [:]) { $0[$1.channelId] = $1 }
             
             // Reload statuses
             let statusEntities = try statusRepository.fetchAllStatuses()
-            statusCache = Dictionary(uniqueKeysWithValues: statusEntities.map { ($0.videoId, $0) })
+            // Handle potential duplicates after removing unique constraints - keep last value
+            statusCache = statusEntities.reduce(into: [:]) { $0[$1.videoId] = $1 }
             
             // Reload videos with updated statuses and channels
             let videoEntities = try videoRepository.fetchAllVideos()

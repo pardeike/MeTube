@@ -107,7 +107,17 @@ class StatusRepository {
     
     /// Save multiple status entities
     func saveStatuses(_ statuses: [StatusEntity]) throws {
-        for status in statuses {
+        // Deduplicate statuses by videoId to prevent inserting duplicates
+        var seenIds = Set<String>()
+        let uniqueStatuses = statuses.filter { status in
+            if seenIds.contains(status.videoId) {
+                return false
+            }
+            seenIds.insert(status.videoId)
+            return true
+        }
+        
+        for status in uniqueStatuses {
             try saveStatus(status)
         }
     }
