@@ -19,7 +19,6 @@ struct ChannelDetailView: View {
     let channel: Channel
     @EnvironmentObject var feedViewModel: FeedViewModel
     @State private var selectedVideo: Video?
-    @State private var showingPlayer = false
     @State private var selectedFilter: ChannelVideoFilter = .all
     @State private var searchText: String = ""
     
@@ -59,11 +58,14 @@ struct ChannelDetailView: View {
                     videos: channelVideos,
                     onVideoTap: { video in
                         selectedVideo = video
-                        showingPlayer = true
                     },
                     onToggleWatched: { video in
                         Task {
-                            await feedViewModel.markAsWatched(video)
+                            if video.status == .watched {
+                                await feedViewModel.markAsUnwatched(video)
+                            } else {
+                                await feedViewModel.markAsWatched(video)
+                            }
                         }
                     },
                     onMarkSkipped: { video in
@@ -107,30 +109,28 @@ struct ChannelDetailView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingPlayer) {
-            if let video = selectedVideo {
-                let nextVideo = getNextVideo(after: video)
-                let previousVideo = getPreviousVideo(before: video)
-                VideoPlayerView(
-                    video: video,
-                    onDismiss: {
-                        showingPlayer = false
-                    },
-                    onMarkWatched: {
-                        Task {
-                            await feedViewModel.markAsWatched(video)
-                        }
-                    },
-                    nextVideo: nextVideo,
-                    previousVideo: previousVideo,
-                    onNextVideo: { next in
-                        selectedVideo = next
-                    },
-                    onPreviousVideo: { previous in
-                        selectedVideo = previous
+        .fullScreenCover(item: $selectedVideo) { video in
+            let nextVideo = getNextVideo(after: video)
+            let previousVideo = getPreviousVideo(before: video)
+            VideoPlayerView(
+                video: video,
+                onDismiss: {
+                    selectedVideo = nil
+                },
+                onMarkWatched: {
+                    Task {
+                        await feedViewModel.markAsWatched(video)
                     }
-                )
-            }
+                },
+                nextVideo: nextVideo,
+                previousVideo: previousVideo,
+                onNextVideo: { next in
+                    selectedVideo = next
+                },
+                onPreviousVideo: { previous in
+                    selectedVideo = previous
+                }
+            )
         }
     }
     
