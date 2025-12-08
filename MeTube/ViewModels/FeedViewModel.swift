@@ -1,8 +1,8 @@
 //
-//  FeedViewModelNew.swift
+//  FeedViewModel.swift
 //  MeTube
 //
-//  Refactored ViewModel for the subscription feed using offline-first architecture
+//  ViewModel for the subscription feed using offline-first architecture
 //
 
 import Foundation
@@ -97,7 +97,6 @@ class FeedViewModel: ObservableObject {
     @Published var lastRefreshDate: Date?
     @Published var newVideosCount: Int = 0
     
-    /// Convenience property for backward compatibility
     var isLoading: Bool { loadingState.isLoading }
     
     // MARK: - Computed Properties
@@ -154,11 +153,6 @@ class FeedViewModel: ObservableObject {
     
     private var channelCache: [String: ChannelEntity] = [:]
     private var statusCache: [String: StatusEntity] = [:]
-    
-    // MARK: - App Settings
-    
-    private var appSettings: AppSettings = .default
-    private let cloudKitService = CloudKitService()
     
     // MARK: - Initialization
     
@@ -372,10 +366,10 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Status Management
     
-    /// Load video statuses (for backward compatibility)
+    /// Load video statuses
     func loadVideoStatuses() async {
-        // Statuses are loaded automatically, so this is a no-op in the new architecture
-        appLog("loadVideoStatuses called (no-op in offline-first mode)", category: .feed, level: .debug)
+        // Statuses are loaded automatically during initialization
+        appLog("loadVideoStatuses called", category: .feed, level: .debug)
     }
     
     /// Marks a video as watched

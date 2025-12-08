@@ -2,8 +2,7 @@
 //  ModelConverters.swift
 //  MeTube
 //
-//  Converters between SwiftData entities and legacy models
-//  Maintains compatibility during refactoring
+//  Converters between SwiftData entities and presentation models
 //
 
 import Foundation
@@ -14,7 +13,6 @@ import SwiftData
 extension Video {
     /// Create a Video from VideoEntity and optional StatusEntity
     init(from entity: VideoEntity, status: StatusEntity? = nil) {
-        // Determine status from StatusEntity or default to unknown
         let videoStatus: VideoStatus
         if let statusEntity = status {
             videoStatus = statusEntity.watchStatus.toVideoStatus()
@@ -89,7 +87,7 @@ extension ChannelEntity {
 // MARK: - Status Conversion
 
 extension WatchStatus {
-    /// Convert WatchStatus to VideoStatus for legacy compatibility
+    /// Convert WatchStatus to VideoStatus
     func toVideoStatus() -> VideoStatus {
         switch self {
         case .unknown, .unwatched:
