@@ -27,7 +27,15 @@ struct MeTubeApp: App {
                 ChannelEntity.self,
                 StatusEntity.self
             ])
-            let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+            
+            // Configure the model container
+            // Allow automatic migration and schema evolution
+            let modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                allowsSave: true
+            )
+            
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             self.modelContainer = container
             
@@ -38,7 +46,53 @@ struct MeTubeApp: App {
             
             appLog("SwiftData ModelContainer initialized successfully", category: .feed, level: .success)
         } catch {
-            fatalError("Failed to initialize ModelContainer: \(error)")
+            // If the store fails to load, it might be due to schema changes
+            // Log the error and attempt to recover
+            appLog("Failed to initialize ModelContainer: \(error)", category: .feed, level: .error)
+            
+            // Attempt recovery by deleting the old store and creating a new one
+            do {
+                let schema = Schema([
+                    VideoEntity.self,
+                    ChannelEntity.self,
+                    StatusEntity.self
+                ])
+                
+                // Get the default store URL
+                let storeURL = URL.applicationSupportDirectory.appending(path: "default.store")
+                
+                // Try to remove the old store files if they exist
+                let fileManager = FileManager.default
+                if fileManager.fileExists(atPath: storeURL.path) {
+                    try? fileManager.removeItem(at: storeURL)
+                    appLog("Removed incompatible store at: \(storeURL.path)", category: .feed, level: .warning)
+                }
+                
+                // Also try to remove associated files
+                let shmURL = storeURL.appendingPathExtension("shm")
+                let walURL = storeURL.appendingPathExtension("wal")
+                try? fileManager.removeItem(at: shmURL)
+                try? fileManager.removeItem(at: walURL)
+                
+                // Try again with a fresh configuration
+                let modelConfiguration = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: false,
+                    allowsSave: true
+                )
+                
+                let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                self.modelContainer = container
+                
+                let context = ModelContext(container)
+                let viewModel = FeedViewModel(modelContext: context)
+                _feedViewModel = StateObject(wrappedValue: viewModel)
+                
+                appLog("SwiftData ModelContainer initialized successfully after store reset", category: .feed, level: .success)
+            } catch {
+                // If recovery fails, this is fatal
+                fatalError("Failed to initialize ModelContainer even after attempted recovery: \(error)")
+            }
         }
     }
     
