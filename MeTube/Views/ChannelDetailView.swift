@@ -109,6 +109,7 @@ struct ChannelDetailView: View {
         .fullScreenCover(isPresented: $showingPlayer) {
             if let video = selectedVideo {
                 let nextVideo = getNextVideo(after: video)
+                let previousVideo = getPreviousVideo(before: video)
                 VideoPlayerView(
                     video: video,
                     onDismiss: {
@@ -120,8 +121,12 @@ struct ChannelDetailView: View {
                         }
                     },
                     nextVideo: nextVideo,
+                    previousVideo: previousVideo,
                     onNextVideo: { next in
                         selectedVideo = next
+                    },
+                    onPreviousVideo: { previous in
+                        selectedVideo = previous
                     }
                 )
             }
@@ -135,6 +140,15 @@ struct ChannelDetailView: View {
         }
         let nextIndex = currentIndex + 1
         return nextIndex < channelVideos.count ? channelVideos[nextIndex] : nil
+    }
+    
+    /// Gets the previous video before the current one in this channel
+    private func getPreviousVideo(before video: Video) -> Video? {
+        guard let currentIndex = channelVideos.firstIndex(where: { $0.id == video.id }) else {
+            return nil
+        }
+        let previousIndex = currentIndex - 1
+        return previousIndex >= 0 ? channelVideos[previousIndex] : nil
     }
 }
 
