@@ -61,9 +61,6 @@ struct YouTubeWebView: UIViewRepresentable {
         configuration.allowsAirPlayForMediaPlayback = true
         
         // Enable JavaScript for the YouTube API
-        let preferences = WKWebpagePreferences()
-        preferences.allowsContentJavaScript = true
-        configuration.defaultWebpagePreferences = preferences
         
         // Add message handler for JavaScript communication
         let userContentController = WKUserContentController()
