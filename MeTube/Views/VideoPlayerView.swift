@@ -8,6 +8,15 @@
 //
 //  Toggle between players using PlayerConfig.useDirectPlayer
 //
+//  Navigation Features:
+//  - Swipe up: Dismiss player
+//  - Swipe down: Show video info sheet
+//  - Swipe left: Next video
+//  - Swipe right: Previous video
+//  - Tap: Toggle controls visibility
+//
+//  Auto-watch: Video marked as watched if >2/3 played on dismiss
+//
 
 import SwiftUI
 import AVKit
@@ -44,6 +53,12 @@ private enum VideoPlayerConfig {
     
     /// Minimum drag distance to dismiss info sheet (in points)
     static let minimumDragToDismiss: CGFloat = 100
+    
+    /// Skip forward/backward interval in seconds
+    static let skipInterval: TimeInterval = 10.0
+    
+    /// Animation duration for navigation transitions
+    static let navigationAnimationDuration: Double = 0.3
 }
 
 struct VideoPlayerView: View {
@@ -54,6 +69,10 @@ struct VideoPlayerView: View {
     var previousVideo: Video? = nil
     var onNextVideo: ((Video) -> Void)? = nil
     var onPreviousVideo: ((Video) -> Void)? = nil
+    /// Current position in the video list (1-based, for display)
+    var currentIndex: Int? = nil
+    /// Total count of videos in the list
+    var totalVideos: Int? = nil
     
     @State private var showingControls = true
     @State private var controlsTimer: Timer?
@@ -63,9 +82,19 @@ struct VideoPlayerView: View {
     @State private var currentPlaybackTime: TimeInterval = 0
     @State private var timeObserverToken: Any?
     @State private var sdkPlayerReady = false
+    @State private var navigationFeedback: NavigationFeedback? = nil
+    @State private var showingPlaybackControls = false
     
     /// Shared stream extractor instance (only used for direct player)
     private let streamExtractor = YouTubeStreamExtractor.shared
+    
+    /// Navigation feedback type for visual indicators
+    enum NavigationFeedback: Equatable {
+        case nextVideo
+        case previousVideo
+        case noNextVideo
+        case noPreviousVideo
+    }
     
     init(
         video: Video,
@@ -74,7 +103,9 @@ struct VideoPlayerView: View {
         nextVideo: Video? = nil,
         previousVideo: Video? = nil,
         onNextVideo: ((Video) -> Void)? = nil,
-        onPreviousVideo: ((Video) -> Void)? = nil
+        onPreviousVideo: ((Video) -> Void)? = nil,
+        currentIndex: Int? = nil,
+        totalVideos: Int? = nil
     ) {
         self.video = video
         self.onDismiss = onDismiss
@@ -83,10 +114,14 @@ struct VideoPlayerView: View {
         self.previousVideo = previousVideo
         self.onNextVideo = onNextVideo
         self.onPreviousVideo = onPreviousVideo
+        self.currentIndex = currentIndex
+        self.totalVideos = totalVideos
         appLog("VideoPlayerView init called", category: .player, level: .info, context: [
             "videoId": video.id,
             "title": video.title,
-            "duration": video.duration
+            "duration": video.duration,
+            "currentIndex": currentIndex ?? -1,
+            "totalVideos": totalVideos ?? -1
         ])
     }
     
@@ -205,6 +240,16 @@ struct VideoPlayerView: View {
                     }
                     
                     Spacer()
+                    
+                    // Bottom controls area
+                    if showingControls {
+                        bottomControlsOverlay
+                    }
+                }
+                
+                // Navigation feedback indicator
+                if let feedback = navigationFeedback {
+                    NavigationFeedbackView(feedback: feedback)
                 }
                 
                 // Video info view (simple overlay when shown)
@@ -312,8 +357,110 @@ struct VideoPlayerView: View {
                 controlsTimer?.invalidate()
                 cleanupPlayer()
             }
-        }
+    }
         .statusBarHidden(true)
+    }
+    
+    // MARK: - Bottom Controls
+    
+    /// Bottom control bar with playback controls and progress
+    @ViewBuilder
+    private var bottomControlsOverlay: some View {
+        VStack(spacing: 12) {
+            // Playback progress bar (only for direct player)
+            if PlayerConfig.useDirectPlayer && loadingState == .ready {
+                PlaybackProgressBar(
+                    currentTime: currentPlaybackTime,
+                    duration: video.duration
+                )
+                .padding(.horizontal)
+            }
+            
+            // Control buttons row
+            HStack(spacing: 24) {
+                // Previous video button
+                Button(action: {
+                    handlePreviousVideo()
+                }) {
+                    Image(systemName: "backward.end.fill")
+                        .font(.title2)
+                        .foregroundColor(previousVideo != nil ? .white : .white.opacity(0.3))
+                }
+                .disabled(previousVideo == nil)
+                
+                // Skip backward button
+                if PlayerConfig.useDirectPlayer && player != nil {
+                    Button(action: {
+                        skipBackward()
+                    }) {
+                        Image(systemName: "gobackward.10")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // Play/Pause (visual indicator - actual control is native player)
+                if PlayerConfig.useDirectPlayer {
+                    Image(systemName: "play.fill")
+                        .font(.title)
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                
+                // Skip forward button
+                if PlayerConfig.useDirectPlayer && player != nil {
+                    Button(action: {
+                        skipForward()
+                    }) {
+                        Image(systemName: "goforward.10")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // Next video button
+                Button(action: {
+                    handleNextVideo()
+                }) {
+                    Image(systemName: "forward.end.fill")
+                        .font(.title2)
+                        .foregroundColor(nextVideo != nil ? .white : .white.opacity(0.3))
+                }
+                .disabled(nextVideo == nil)
+            }
+            .padding(.vertical, 8)
+            
+            // Video position indicator
+            if let index = currentIndex, let total = totalVideos {
+                Text("Video \(index) of \(total)")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            
+            // Mark as watched button (more prominent)
+            Button(action: {
+                markWatchedAndAdvance()
+            }) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Mark as Watched")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.green.opacity(0.8))
+                .cornerRadius(20)
+            }
+            .padding(.bottom, 8)
+        }
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.7)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
     
     /// Loading overlay view
@@ -531,24 +678,65 @@ struct VideoPlayerView: View {
     private func handleNextVideo() {
         guard let next = nextVideo else {
             appLog("No next video available", category: .player, level: .debug)
+            showNavigationFeedback(.noNextVideo)
             return
         }
         appLog("Swipe left detected - advancing to next video", category: .player, level: .info)
+        showNavigationFeedback(.nextVideo)
         // Auto-watch check will happen in onDisappear when view is recreated
-        // Switch to next video in-place
-        onNextVideo?(next)
+        // Switch to next video in-place (with slight delay for feedback)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.onNextVideo?(next)
+        }
     }
     
     /// Handle previous video navigation - switch in-place
     private func handlePreviousVideo() {
         guard let previous = previousVideo else {
             appLog("No previous video available", category: .player, level: .debug)
+            showNavigationFeedback(.noPreviousVideo)
             return
         }
         appLog("Swipe right detected - going to previous video", category: .player, level: .info)
+        showNavigationFeedback(.previousVideo)
         // Auto-watch check will happen in onDisappear when view is recreated
-        // Switch to previous video in-place
-        onPreviousVideo?(previous)
+        // Switch to previous video in-place (with slight delay for feedback)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.onPreviousVideo?(previous)
+        }
+    }
+    
+    /// Skip forward by the configured interval
+    private func skipForward() {
+        guard let player = player else { return }
+        let newTime = min(currentPlaybackTime + VideoPlayerConfig.skipInterval, video.duration)
+        let cmTime = CMTime(seconds: newTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        player.seek(to: cmTime) { _ in
+            appLog("Skipped forward to \(newTime)s", category: .player, level: .debug)
+        }
+    }
+    
+    /// Skip backward by the configured interval
+    private func skipBackward() {
+        guard let player = player else { return }
+        let newTime = max(currentPlaybackTime - VideoPlayerConfig.skipInterval, 0)
+        let cmTime = CMTime(seconds: newTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        player.seek(to: cmTime) { _ in
+            appLog("Skipped backward to \(newTime)s", category: .player, level: .debug)
+        }
+    }
+    
+    /// Shows navigation feedback indicator
+    private func showNavigationFeedback(_ feedback: NavigationFeedback) {
+        withAnimation(.easeIn(duration: 0.15)) {
+            navigationFeedback = feedback
+        }
+        // Auto-hide after brief display
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                self.navigationFeedback = nil
+            }
+        }
     }
     
     private func resetControlsTimer() {
@@ -563,7 +751,122 @@ struct VideoPlayerView: View {
     }
 }
 
-// MARK: - Video Info Sheet
+// MARK: - Navigation Feedback View
+
+/// Visual feedback indicator for navigation gestures
+struct NavigationFeedbackView: View {
+    let feedback: VideoPlayerView.NavigationFeedback
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: iconName)
+                .font(.title)
+            Text(message)
+                .font(.headline)
+        }
+        .foregroundColor(isError ? .orange : .white)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.black.opacity(0.8))
+        )
+    }
+    
+    private var iconName: String {
+        switch feedback {
+        case .nextVideo:
+            return "forward.end.fill"
+        case .previousVideo:
+            return "backward.end.fill"
+        case .noNextVideo:
+            return "exclamationmark.circle"
+        case .noPreviousVideo:
+            return "exclamationmark.circle"
+        }
+    }
+    
+    private var message: String {
+        switch feedback {
+        case .nextVideo:
+            return "Next Video"
+        case .previousVideo:
+            return "Previous Video"
+        case .noNextVideo:
+            return "No More Videos"
+        case .noPreviousVideo:
+            return "First Video"
+        }
+    }
+    
+    private var isError: Bool {
+        switch feedback {
+        case .noNextVideo, .noPreviousVideo:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// MARK: - Playback Progress Bar
+
+/// Simple playback progress indicator
+struct PlaybackProgressBar: View {
+    let currentTime: TimeInterval
+    let duration: TimeInterval
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background track
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.white.opacity(0.3))
+                        .frame(height: 4)
+                    
+                    // Progress fill
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.red)
+                        .frame(width: progressWidth(for: geometry.size.width), height: 4)
+                }
+            }
+            .frame(height: 4)
+            
+            // Time labels
+            HStack {
+                Text(formatTime(currentTime))
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.7))
+                
+                Spacer()
+                
+                Text(formatTime(duration))
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+    }
+    
+    private func progressWidth(for totalWidth: CGFloat) -> CGFloat {
+        guard duration > 0 else { return 0 }
+        let progress = min(currentTime / duration, 1.0)
+        return totalWidth * CGFloat(progress)
+    }
+    
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = (Int(time) % 3600) / 60
+        let seconds = Int(time) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
+    }
+}
 
 struct VideoInfoSheet: View {
     let video: Video
@@ -798,6 +1101,17 @@ struct ShareSheet: UIViewControllerRepresentable {
             publishedDate: Date(),
             duration: 300,
             thumbnailURL: nil
-        )
+        ),
+        previousVideo: Video(
+            id: "prev123",
+            title: "Previous Video",
+            channelId: "channel1",
+            channelName: "Sample Channel",
+            publishedDate: Date(),
+            duration: 180,
+            thumbnailURL: nil
+        ),
+        currentIndex: 5,
+        totalVideos: 10
     )
 }

@@ -170,6 +170,7 @@ struct FeedView: View {
                 let _ = appLog("fullScreenCover presenting video: \(video.id)", category: .ui, level: .info)
                 let nextVideo = getNextVideo(after: video)
                 let previousVideo = getPreviousVideo(before: video)
+                let videoIndex = getVideoIndex(for: video)
                 VideoPlayerView(
                     video: video,
                     onDismiss: {
@@ -191,10 +192,21 @@ struct FeedView: View {
                     onPreviousVideo: { previous in
                         appLog("VideoPlayerView onPreviousVideo called: \(previous.id)", category: .ui, level: .info)
                         selectedVideo = previous
-                    }
+                    },
+                    currentIndex: videoIndex,
+                    totalVideos: feedViewModel.filteredVideos.count
                 )
             }
         }
+    }
+    
+    /// Gets the 1-based index of the video in the filtered list
+    private func getVideoIndex(for video: Video) -> Int? {
+        let videos = feedViewModel.filteredVideos
+        guard let index = videos.firstIndex(where: { $0.id == video.id }) else {
+            return nil
+        }
+        return index + 1 // Convert to 1-based index
     }
     
     /// Gets the next unwatched video after the current one
