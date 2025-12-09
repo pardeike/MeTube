@@ -83,6 +83,12 @@ struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var sdkPlayerReady = false
     @State private var navigationFeedback: NavigationFeedback? = nil
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    
+    /// Returns true if device is in portrait orientation (controls always visible)
+    private var isPortrait: Bool {
+        verticalSizeClass == .regular
+    }
     
     /// Shared stream extractor instance (only used for direct player)
     private let streamExtractor = YouTubeStreamExtractor.shared
@@ -127,31 +133,73 @@ struct VideoPlayerView: View {
     var body: some View {
         let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: [
             "videoId": video.id,
-            "useDirectPlayer": PlayerConfig.useDirectPlayer
+            "useDirectPlayer": PlayerConfig.useDirectPlayer,
+            "isPortrait": isPortrait
         ])
         GeometryReader { geometry in
+            if isPortrait {
+                // Portrait mode: Fixed layout with controls always visible
+                portraitLayout(geometry: geometry)
+            } else {
+                // Landscape mode: Full-screen with auto-hiding overlay controls
+                landscapeLayout(geometry: geometry)
+            }
+        }
+        .statusBarHidden(!isPortrait)
+        .onAppear {
+            appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: [
+                "videoId": video.id,
+                "useDirectPlayer": PlayerConfig.useDirectPlayer
+            ])
+            if !isPortrait {
+                resetControlsTimer()
+            }
+            // Only load video for direct player; SDK player handles its own loading
+            if PlayerConfig.useDirectPlayer {
+                loadVideo()
+            }
+        }
+        .onDisappear {
+            appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
+                "videoId": video.id,
+                "currentPlaybackTime": currentPlaybackTime,
+                "duration": video.duration
+            ])
+            // Always check if video should be marked as watched when view disappears
+            // This handles both explicit dismiss and system gesture dismiss
+            checkAndMarkWatchedIfNeeded()
+            controlsTimer?.invalidate()
+            cleanupPlayer()
+        }
+    }
+    
+    // MARK: - Portrait Layout (Controls Always Visible)
+    
+    /// Portrait layout with video in center and controls above/below
+    @ViewBuilder
+    private func portraitLayout(geometry: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            // Top controls bar
+            portraitTopBar
+            
+            // Video player area (centered with aspect ratio)
             ZStack {
-                // Background
-                Color.black.edgesIgnoringSafeArea(.all)
+                Color.black
                 
-                // Video Player - conditional based on PlayerConfig
+                // Video Player
                 if PlayerConfig.useDirectPlayer {
-                    // Direct Player (AVPlayer with extracted stream)
                     if let player = player {
                         NativeVideoPlayer(player: player)
-                            .edgesIgnoringSafeArea(.all)
                     }
                 } else {
-                    // YouTube SDK Player (WKWebView with IFrame API)
                     YouTubeSDKPlayerView(
                         videoId: video.id,
                         autoPlay: PlayerConfig.autoPlay,
                         isReady: $sdkPlayerReady
                     )
-                    .edgesIgnoringSafeArea(.all)
                 }
                 
-                // Loading / Error overlay (only for direct player or when SDK not ready)
+                // Loading overlay
                 if PlayerConfig.useDirectPlayer {
                     if loadingState != .ready {
                         loadingOverlay
@@ -162,202 +210,413 @@ struct VideoPlayerView: View {
                     }
                 }
                 
-                // Overlay Controls
-                VStack {
-                    // Top Bar with controls and info
-                    if showingControls {
-                        VStack(spacing: 0) {
-                            // Control buttons row
-                            HStack {
-                                Button(action: {
-                                    appLog("Dismiss button tapped", category: .player, level: .info)
-                                    dismissPlayerView()
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding()
-                                        .background(Color.black.opacity(0.5))
-                                        .clipShape(Circle())
-                                }
-                                
-                                Spacer()
-                                
-                                // Share Button for YouTube URL
-                                SharePlayButton(videoId: video.id)
-                                    .frame(width: 44, height: 44)
-                                
-                                // AirPlay Button
-                                AirPlayButton()
-                                    .frame(width: 44, height: 44)
-                                
-                                Button(action: {
-                                    appLog("Mark watched button tapped", category: .player, level: .info)
-                                    markWatchedAndAdvance()
-                                }) {
-                                    Image(systemName: "checkmark.circle")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .padding()
-                                        .background(Color.black.opacity(0.5))
-                                        .clipShape(Circle())
-                                }
-                            }
-                            .padding()
-                            
-                            // Video Info Bar (moved from bottom)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(video.title)
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .lineLimit(2)
-                                
-                                Text(video.channelName)
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.8))
-                                
-                                HStack {
-                                    Text(video.durationString)
-                                    Text("•")
-                                    Text(video.relativePublishDate)
-                                    
-                                    Spacer()
-                                }
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.6))
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .background(
-                            LinearGradient(
-                                colors: [Color.black.opacity(0.7), Color.clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    }
-                    
-                    Spacer()
-                    
-                    // Bottom controls area
-                    if showingControls {
-                        bottomControlsOverlay
-                    }
-                }
-                
                 // Navigation feedback indicator
                 if let feedback = navigationFeedback {
                     NavigationFeedbackView(feedback: feedback)
                 }
-                
-                // Video info view (simple overlay when shown)
-                if showingVideoInfo {
-                    GeometryReader { geometry in
-                        VStack(spacing: 0) {
-                            // Dismiss button area
-                            HStack {
-                                Spacer()
-                                Button(action: {
-                                    showingVideoInfo = false
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.white.opacity(0.8))
-                                        .padding()
-                                }
-                            }
-                            
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    // Title
-                                    Text(video.title)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                    
-                                    // Channel info
-                                    Text(video.channelName)
-                                        .font(.headline)
-                                        .foregroundColor(.white.opacity(0.9))
-                                    
-                                    // Metadata
-                                    HStack(spacing: 12) {
-                                        Label(video.durationString, systemImage: "clock")
-                                        Label(video.relativePublishDate, systemImage: "calendar")
-                                    }
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
-                                    
-                                    // Description
-                                    if let description = video.description, !description.isEmpty {
-                                        Divider()
-                                            .background(Color.white.opacity(0.3))
-                                        
-                                        Text("Description")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                        
-                                        Text(description)
-                                            .font(.body)
-                                            .foregroundColor(.white.opacity(0.8))
-                                    }
-                                }
-                                .padding()
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.black.opacity(0.95))
-                    }
+            }
+            .aspectRatio(16/9, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            
+            // Bottom controls (always visible in portrait)
+            portraitBottomControls
+            
+            Spacer(minLength: 0)
+        }
+        .background(Color.black)
+        .gesture(
+            DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
+                .onEnded { value in
+                    handleSwipeGesture(value: value)
                 }
+        )
+        // Video info overlay (when shown)
+        .overlay {
+            if showingVideoInfo {
+                videoInfoOverlay
             }
-            .onTapGesture {
-                // Only toggle controls if not showing video info and not tapping on controls
-                if !showingVideoInfo && !showingControls {
-                    appLog("Player view tapped - showing controls", category: .player, level: .debug)
-                    withAnimation {
-                        showingControls = true
-                    }
-                    resetControlsTimer()
-                } else if !showingVideoInfo && showingControls {
-                    // Tapping when controls are visible hides them
-                    appLog("Player view tapped - hiding controls", category: .player, level: .debug)
-                    withAnimation {
-                        showingControls = false
-                    }
-                }
-            }
-            .gesture(
-                DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
-                    .onEnded { value in
-                        handleSwipeGesture(value: value)
-                    }
-            )
-            .onAppear {
-                appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: [
-                    "videoId": video.id,
-                    "useDirectPlayer": PlayerConfig.useDirectPlayer
-                ])
-                resetControlsTimer()
-                // Only load video for direct player; SDK player handles its own loading
-                if PlayerConfig.useDirectPlayer {
-                    loadVideo()
-                }
-            }
-            .onDisappear {
-                appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
-                    "videoId": video.id,
-                    "currentPlaybackTime": currentPlaybackTime,
-                    "duration": video.duration
-                ])
-                // Always check if video should be marked as watched when view disappears
-                // This handles both explicit dismiss and system gesture dismiss
-                checkAndMarkWatchedIfNeeded()
-                controlsTimer?.invalidate()
-                cleanupPlayer()
-            }
+        }
     }
-        .statusBarHidden(true)
+    
+    /// Top bar for portrait mode
+    @ViewBuilder
+    private var portraitTopBar: some View {
+        VStack(spacing: 8) {
+            // Control buttons row
+            HStack {
+                Button(action: {
+                    appLog("Dismiss button tapped", category: .player, level: .info)
+                    dismissPlayerView()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(Color.black.opacity(0.3))
+                        .clipShape(Circle())
+                }
+                
+                Spacer()
+                
+                // Share Button for YouTube URL
+                SharePlayButton(videoId: video.id)
+                    .frame(width: 44, height: 44)
+                
+                // AirPlay Button
+                AirPlayButton()
+                    .frame(width: 44, height: 44)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+            
+            // Video info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(video.title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                
+                Text(video.channelName)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
+                
+                HStack {
+                    Text(video.durationString)
+                    Text("•")
+                    Text(video.relativePublishDate)
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+        .background(Color.black)
+    }
+    
+    /// Bottom controls for portrait mode (always visible)
+    @ViewBuilder
+    private var portraitBottomControls: some View {
+        VStack(spacing: 12) {
+            // Playback progress bar (only for direct player)
+            if PlayerConfig.useDirectPlayer && loadingState == .ready {
+                PlaybackProgressBar(
+                    currentTime: currentPlaybackTime,
+                    duration: video.duration
+                )
+                .padding(.horizontal)
+            }
+            
+            // Control buttons row
+            HStack(spacing: 24) {
+                // Previous video button
+                Button(action: {
+                    handlePreviousVideo()
+                }) {
+                    Image(systemName: "backward.end.fill")
+                        .font(.title2)
+                        .foregroundColor(previousVideo != nil ? .white : .white.opacity(0.3))
+                }
+                .disabled(previousVideo == nil)
+                
+                // Skip backward button
+                if PlayerConfig.useDirectPlayer && player != nil {
+                    Button(action: {
+                        skipBackward()
+                    }) {
+                        Image(systemName: "gobackward.10")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // Skip forward button
+                if PlayerConfig.useDirectPlayer && player != nil {
+                    Button(action: {
+                        skipForward()
+                    }) {
+                        Image(systemName: "goforward.10")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // Next video button
+                Button(action: {
+                    handleNextVideo()
+                }) {
+                    Image(systemName: "forward.end.fill")
+                        .font(.title2)
+                        .foregroundColor(nextVideo != nil ? .white : .white.opacity(0.3))
+                }
+                .disabled(nextVideo == nil)
+            }
+            .padding(.vertical, 8)
+            
+            // Video position indicator
+            if let index = currentIndex, let total = totalVideos {
+                Text("Video \(index) of \(total)")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            
+            // Mark as watched button (more prominent)
+            Button(action: {
+                markWatchedAndAdvance()
+            }) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Mark as Watched")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.green.opacity(0.8))
+                .cornerRadius(20)
+            }
+            .padding(.bottom, 8)
+            
+            // Info button
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showingVideoInfo = true
+                }
+            }) {
+                HStack {
+                    Image(systemName: "info.circle")
+                    Text("More Info")
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(.bottom, 8)
+        }
+        .padding()
+        .background(Color.black)
+    }
+    
+    // MARK: - Landscape Layout (Full-screen with Auto-hiding Controls)
+    
+    /// Landscape layout with full-screen video and auto-hiding overlay controls
+    @ViewBuilder
+    private func landscapeLayout(geometry: GeometryProxy) -> some View {
+        ZStack {
+            // Background
+            Color.black.edgesIgnoringSafeArea(.all)
+            
+            // Video Player - conditional based on PlayerConfig
+            if PlayerConfig.useDirectPlayer {
+                // Direct Player (AVPlayer with extracted stream)
+                if let player = player {
+                    NativeVideoPlayer(player: player)
+                        .edgesIgnoringSafeArea(.all)
+                }
+            } else {
+                // YouTube SDK Player (WKWebView with IFrame API)
+                YouTubeSDKPlayerView(
+                    videoId: video.id,
+                    autoPlay: PlayerConfig.autoPlay,
+                    isReady: $sdkPlayerReady
+                )
+                .edgesIgnoringSafeArea(.all)
+            }
+            
+            // Loading / Error overlay (only for direct player or when SDK not ready)
+            if PlayerConfig.useDirectPlayer {
+                if loadingState != .ready {
+                    loadingOverlay
+                }
+            } else {
+                if !sdkPlayerReady {
+                    sdkLoadingOverlay
+                }
+            }
+            
+            // Overlay Controls (auto-hiding)
+            VStack {
+                // Top Bar with controls and info
+                if showingControls {
+                    landscapeTopBar
+                }
+                
+                Spacer()
+                
+                // Bottom controls area
+                if showingControls {
+                    bottomControlsOverlay
+                }
+            }
+            
+            // Navigation feedback indicator
+            if let feedback = navigationFeedback {
+                NavigationFeedbackView(feedback: feedback)
+            }
+            
+            // Video info view (simple overlay when shown)
+            if showingVideoInfo {
+                videoInfoOverlay
+            }
+        }
+        .onTapGesture {
+            // Only toggle controls if not showing video info
+            if !showingVideoInfo && !showingControls {
+                appLog("Player view tapped - showing controls", category: .player, level: .debug)
+                withAnimation {
+                    showingControls = true
+                }
+                resetControlsTimer()
+            } else if !showingVideoInfo && showingControls {
+                // Tapping when controls are visible hides them
+                appLog("Player view tapped - hiding controls", category: .player, level: .debug)
+                withAnimation {
+                    showingControls = false
+                }
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
+                .onEnded { value in
+                    handleSwipeGesture(value: value)
+                }
+        )
+    }
+    
+    /// Top bar for landscape mode (with gradient background)
+    @ViewBuilder
+    private var landscapeTopBar: some View {
+        VStack(spacing: 0) {
+            // Control buttons row
+            HStack {
+                Button(action: {
+                    appLog("Dismiss button tapped", category: .player, level: .info)
+                    dismissPlayerView()
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .clipShape(Circle())
+                }
+                
+                Spacer()
+                
+                // Share Button for YouTube URL
+                SharePlayButton(videoId: video.id)
+                    .frame(width: 44, height: 44)
+                
+                // AirPlay Button
+                AirPlayButton()
+                    .frame(width: 44, height: 44)
+                
+                Button(action: {
+                    appLog("Mark watched button tapped", category: .player, level: .info)
+                    markWatchedAndAdvance()
+                }) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.5))
+                        .clipShape(Circle())
+                }
+            }
+            .padding()
+            
+            // Video Info Bar
+            VStack(alignment: .leading, spacing: 8) {
+                Text(video.title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                
+                Text(video.channelName)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
+                
+                HStack {
+                    Text(video.durationString)
+                    Text("•")
+                    Text(video.relativePublishDate)
+                    
+                    Spacer()
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.6))
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.7), Color.clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+    
+    /// Video info overlay (shared between portrait and landscape)
+    @ViewBuilder
+    private var videoInfoOverlay: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Dismiss button area
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showingVideoInfo = false
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding()
+                    }
+                }
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Title
+                        Text(video.title)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        // Channel info
+                        Text(video.channelName)
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.9))
+                        
+                        // Metadata
+                        HStack(spacing: 12) {
+                            Label(video.durationString, systemImage: "clock")
+                            Label(video.relativePublishDate, systemImage: "calendar")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                        
+                        // Description
+                        if let description = video.description, !description.isEmpty {
+                            Divider()
+                                .background(Color.white.opacity(0.3))
+                            
+                            Text("Description")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Text(description)
+                                .font(.body)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.95))
+        }
     }
     
     // MARK: - Bottom Controls
@@ -737,7 +996,8 @@ struct VideoPlayerView: View {
     
     private func resetControlsTimer() {
         controlsTimer?.invalidate()
-        if showingControls {
+        // Only auto-hide controls in landscape mode; portrait mode has always-visible controls
+        if showingControls && !isPortrait {
             controlsTimer = Timer.scheduledTimer(withTimeInterval: VideoPlayerConfig.controlsAutoHideDelay, repeats: false) { _ in
                 withAnimation {
                     showingControls = false
