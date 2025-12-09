@@ -9,11 +9,7 @@
 import SwiftUI
 import SwiftData
 
-/// Filter options for channel list
-enum ChannelFilter: String, CaseIterable {
-    case all = "All Channels"
-    case withUnseenVideos = "With Unseen Videos"
-}
+// ChannelFilter enum is defined in SharedTypes.swift
 
 #if os(iOS)
 

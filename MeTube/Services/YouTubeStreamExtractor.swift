@@ -133,14 +133,14 @@ final class YouTubeStreamExtractor {
     private let playerSignatureValue = 20200
     
     init() {
-        appLog("YouTubeStreamExtractor initialized with quality preference: highest", category: .player, level: .info)
+        appLog("YouTubeStreamExtractor initialized with quality preference: \(qualityPreference)", category: .player, level: .info)
     }
     
     /// Extracts the best quality stream URL for a YouTube video
     /// - Parameter videoId: The YouTube video ID
     /// - Returns: Direct stream URL for the video (highest quality available)
     func extractStreamURL(videoId: String) async throws -> URL {
-        appLog("Extracting HIGHEST QUALITY stream URL for video: \(videoId)", category: .player, level: .info)
+        appLog("Extracting stream URL for video: \(videoId) (quality: \(qualityPreference))", category: .player, level: .info)
         
         guard !videoId.isEmpty else {
             throw StreamExtractionError.invalidVideoId

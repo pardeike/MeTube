@@ -347,15 +347,21 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // MARK: - Token Storage (Keychain with iCloud Sync)
     
-    /// Keychain access group for iCloud sync (requires entitlement)
-    /// Using the app's bundle identifier as the base for the access group
+    /// Keychain access group for shared access between iOS and tvOS apps.
+    /// 
+    /// For iCloud Keychain sync to work between apps:
+    /// 1. Both iOS and tvOS apps must have the same team ID
+    /// 2. Both must enable "Keychain Sharing" capability with the same access group
+    /// 3. The kSecAttrSynchronizable flag must be set to true on items
+    ///
+    /// Using nil here means we use the app's default keychain, which works
+    /// for iCloud sync as long as kSecAttrSynchronizable is enabled.
+    /// The iCloud Keychain automatically syncs synchronizable items across
+    /// devices signed into the same iCloud account.
     private var keychainAccessGroup: String? {
-        // Note: For iCloud Keychain sync to work, both iOS and tvOS apps must:
-        // 1. Have the same team ID
-        // 2. Use the same keychain-access-groups entitlement
-        // 3. Enable iCloud Keychain in capabilities
-        // The access group format is: $(TeamIdentifierPrefix)com.metube.app.shared
-        return nil // Using default access group - iCloud sync works automatically if properly configured
+        // Using nil (default keychain) with kSecAttrSynchronizable = true
+        // This allows items to sync via iCloud Keychain without explicit access groups
+        return nil
     }
     
     @MainActor private func loadStoredToken() {

@@ -45,9 +45,11 @@
 		AA4444444444444444444444 /* TVChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42A4B1A80EFDCCFAE357182 /* TVChannelsView.swift */; };
 		AA5555555555555555555555 /* TVVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3C4E63A4348D7C924C2954 /* TVVideoPlayerView.swift */; };
 		AA6666666666666666666666 /* TVVideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D746E19FEFE48A7B56475C /* TVVideoRowView.swift */; };
+		AA7777777777777777777777 /* SharedTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB7777777777777777777777 /* SharedTypes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BB7777777777777777777777 /* SharedTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedTypes.swift; path = MeTube/Shared/SharedTypes.swift; sourceTree = SOURCE_ROOT; };
 		"'200000000'" = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		"'200000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
 		"'200000002'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				400000001,
 				400000010,
 				E60943A59224648B1E37CF1D /* PlatformUtilities.swift */,
+				BB7777777777777777777777 /* SharedTypes.swift */,
 				DC914AEA9F19C94BE253681A /* TVLoginView.swift */,
 				19474B25B4F69D3DC99AF61F /* TVFeedView.swift */,
 				A42A4B1A80EFDCCFAE357182 /* TVChannelsView.swift */,
@@ -322,6 +325,7 @@
 				B6B9483EA9F3CC47B7E77883 /* PlayerConfig.swift in Sources */,
 				C2164322B1C913958BE0DCD9 /* YouTubeSDKPlayerView.swift in Sources */,
 				AA1111111111111111111111 /* PlatformUtilities.swift in Sources */,
+				AA7777777777777777777777 /* SharedTypes.swift in Sources */,
 				AA2222222222222222222222 /* TVLoginView.swift in Sources */,
 				AA3333333333333333333333 /* TVFeedView.swift in Sources */,
 				AA4444444444444444444444 /* TVChannelsView.swift in Sources */,
