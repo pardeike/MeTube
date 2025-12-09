@@ -197,17 +197,23 @@ class FeedViewModel: ObservableObject {
     
     /// Initializes the sync managers with the hub user ID from AuthenticationManager.
     /// This is called automatically before any sync operations.
-    /// Thread-safe: This class is @MainActor so all access is serialized.
+    ///
+    /// Thread-safety: This class is @MainActor, so all property access and method execution
+    /// is serialized on the main actor. The `isInitializingSyncManagers` flag handles the case
+    /// where multiple tasks call this method before any completes - the flag is set before the
+    /// first `await` suspension point, preventing re-entry from other tasks that were waiting.
     private func initializeSyncManagers() async {
         // Already initialized - early return
         guard hubSyncManager == nil else { return }
         
-        // Prevent concurrent initialization (handles re-entry after await suspension)
+        // Prevent concurrent initialization. Since we're @MainActor, this flag is thread-safe.
+        // It handles the case where Task A starts initialization, hits await, and Task B arrives
+        // before Task A completes. Task B will see the flag and return early.
         guard !isInitializingSyncManagers else { return }
         isInitializingSyncManagers = true
         defer { isInitializingSyncManagers = false }
         
-        // Double-check after acquiring the flag
+        // Double-check after acquiring the flag (another task may have completed initialization)
         guard hubSyncManager == nil else { return }
         
         // Require AuthenticationManager for cross-device hub user ID
