@@ -2,8 +2,11 @@
 //  VideoPlayerView.swift
 //  MeTube
 //
-//  Video player view using native AVPlayer with AirPlay support
-//  Note: Uses direct stream URL extraction for better reliability
+//  Video player view with support for two player modes:
+//  1. Direct Player: Uses AVPlayer with extracted stream URLs (default)
+//  2. SDK Player: Uses YouTube IFrame Player API via WKWebView
+//
+//  Toggle between players using PlayerConfig.useDirectPlayer
 //
 
 import SwiftUI
@@ -59,8 +62,9 @@ struct VideoPlayerView: View {
     @State private var showingVideoInfo = false
     @State private var currentPlaybackTime: TimeInterval = 0
     @State private var timeObserverToken: Any?
+    @State private var sdkPlayerReady = false
     
-    /// Shared stream extractor instance
+    /// Shared stream extractor instance (only used for direct player)
     private let streamExtractor = YouTubeStreamExtractor.shared
     
     init(
@@ -87,21 +91,41 @@ struct VideoPlayerView: View {
     }
     
     var body: some View {
-        let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: ["videoId": video.id])
+        let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: [
+            "videoId": video.id,
+            "useDirectPlayer": PlayerConfig.useDirectPlayer
+        ])
         GeometryReader { geometry in
             ZStack {
                 // Background
                 Color.black.edgesIgnoringSafeArea(.all)
                 
-                // Native Video Player
-                if let player = player {
-                    NativeVideoPlayer(player: player)
-                        .edgesIgnoringSafeArea(.all)
+                // Video Player - conditional based on PlayerConfig
+                if PlayerConfig.useDirectPlayer {
+                    // Direct Player (AVPlayer with extracted stream)
+                    if let player = player {
+                        NativeVideoPlayer(player: player)
+                            .edgesIgnoringSafeArea(.all)
+                    }
+                } else {
+                    // YouTube SDK Player (WKWebView with IFrame API)
+                    YouTubeSDKPlayerView(
+                        videoId: video.id,
+                        autoPlay: PlayerConfig.autoPlay,
+                        isReady: $sdkPlayerReady
+                    )
+                    .edgesIgnoringSafeArea(.all)
                 }
                 
-                // Loading / Error overlay
-                if loadingState != .ready {
-                    loadingOverlay
+                // Loading / Error overlay (only for direct player or when SDK not ready)
+                if PlayerConfig.useDirectPlayer {
+                    if loadingState != .ready {
+                        loadingOverlay
+                    }
+                } else {
+                    if !sdkPlayerReady {
+                        sdkLoadingOverlay
+                    }
                 }
                 
                 // Overlay Controls
@@ -266,9 +290,15 @@ struct VideoPlayerView: View {
                     }
             )
             .onAppear {
-                appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: ["videoId": video.id])
+                appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: [
+                    "videoId": video.id,
+                    "useDirectPlayer": PlayerConfig.useDirectPlayer
+                ])
                 resetControlsTimer()
-                loadVideo()
+                // Only load video for direct player; SDK player handles its own loading
+                if PlayerConfig.useDirectPlayer {
+                    loadVideo()
+                }
             }
             .onDisappear {
                 appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
@@ -327,6 +357,18 @@ struct VideoPlayerView: View {
             case .ready:
                 EmptyView()
             }
+        }
+    }
+    
+    /// Loading overlay for SDK player
+    @ViewBuilder
+    private var sdkLoadingOverlay: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+            Text("Loading YouTube player...")
+                .foregroundColor(.white)
         }
     }
     
