@@ -8,7 +8,7 @@
 //
 //  Toggle between players using PlayerConfig.useDirectPlayer
 //
-//  Navigation Features:
+//  Navigation Features (iOS only):
 //  - Swipe up: Dismiss player
 //  - Swipe down: Show video info sheet
 //  - Swipe left: Next video
@@ -16,6 +16,8 @@
 //  - Tap: Toggle controls visibility
 //
 //  Auto-watch: Video marked as watched if >2/3 played on dismiss
+//
+//  Note: tvOS uses TVVideoPlayerView instead
 //
 
 import SwiftUI
@@ -42,6 +44,9 @@ enum PlayerLoadingState: Equatable {
         }
     }
 }
+
+// iOS-specific VideoPlayerView implementation
+#if os(iOS)
 
 /// Configuration for video player UI
 private enum VideoPlayerConfig {
@@ -1299,3 +1304,4 @@ struct ShareSheet: UIViewControllerRepresentable {
         onSavePosition: { _ in }
     )
 }
+#endif // os(iOS)

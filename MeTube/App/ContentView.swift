@@ -3,6 +3,7 @@
 //  MeTube
 //
 //  Main content view with tab navigation
+//  Handles both iOS and tvOS platforms
 //
 
 import SwiftUI
@@ -15,9 +16,17 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authManager.isAuthenticated {
+                #if os(tvOS)
+                TVMainTabView()
+                #else
                 MainTabView()
+                #endif
             } else {
+                #if os(tvOS)
+                TVLoginView()
+                #else
                 LoginView()
+                #endif
             }
         }
         .onAppear {
@@ -26,6 +35,9 @@ struct ContentView: View {
     }
 }
 
+// MARK: - iOS Main Tab View
+
+#if os(iOS)
 struct MainTabView: View {
     var body: some View {
         TabView {
@@ -41,6 +53,27 @@ struct MainTabView: View {
         }
     }
 }
+#endif
+
+// MARK: - tvOS Main Tab View
+
+#if os(tvOS)
+struct TVMainTabView: View {
+    var body: some View {
+        TabView {
+            TVFeedView()
+                .tabItem {
+                    Label("Feed", systemImage: "play.rectangle.fill")
+                }
+            
+            TVChannelsView()
+                .tabItem {
+                    Label("Channels", systemImage: "person.3.fill")
+                }
+        }
+    }
+}
+#endif
 
 #Preview {
     // Create a temporary in-memory ModelContext for preview

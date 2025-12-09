@@ -3,6 +3,7 @@
 //  MeTube
 //
 //  A distraction-free YouTube subscription feed app
+//  Supports both iOS and tvOS
 //
 
 import SwiftUI
@@ -44,7 +45,7 @@ struct MeTubeApp: App {
             let viewModel = FeedViewModel(modelContext: context)
             _feedViewModel = StateObject(wrappedValue: viewModel)
             
-            appLog("SwiftData ModelContainer initialized successfully", category: .feed, level: .success)
+            appLog("SwiftData ModelContainer initialized successfully on \(Platform.name)", category: .feed, level: .success)
         } catch {
             // If the store fails to load, it might be due to schema changes
             // Log the error and attempt to recover
@@ -106,11 +107,18 @@ struct MeTubeApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .background:
-                // Schedule background refresh when app enters background
+                #if os(iOS)
+                // Schedule background refresh when app enters background (iOS only)
                 feedViewModel.scheduleBackgroundRefresh()
+                #endif
             case .active:
                 // Trigger reconciliation and sync when app becomes active
                 Task {
+                    // On tvOS, also try to reload credentials from iCloud
+                    #if os(tvOS)
+                    await authManager.reloadFromCloud()
+                    #endif
+                    
                     // First, reconcile to check for new videos (respects 15-minute rate limit)
                     await feedViewModel.reconcileOnForeground()
                     // Then, perform regular sync if needed
@@ -120,11 +128,14 @@ struct MeTubeApp: App {
                 break
             }
         }
+        #if os(iOS)
         .backgroundTask(.appRefresh(FeedConfig.backgroundTaskIdentifier)) {
             await handleBackgroundRefresh()
         }
+        #endif
     }
     
+    #if os(iOS)
     @Sendable
     private func handleBackgroundRefresh() async {
         // Get access token and perform background refresh
@@ -135,4 +146,5 @@ struct MeTubeApp: App {
         // Schedule next background refresh
         feedViewModel.scheduleBackgroundRefresh()
     }
+    #endif
 }

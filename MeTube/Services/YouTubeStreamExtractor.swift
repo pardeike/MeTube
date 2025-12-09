@@ -7,7 +7,23 @@
 //
 
 import Foundation
+#if os(iOS)
 import UIKit
+#elseif os(tvOS)
+import UIKit
+#endif
+
+/// Configuration for stream quality preferences
+enum StreamQualityPreference {
+    /// Always use the highest available quality
+    case highest
+    /// Prefer HLS adaptive streaming (adjusts to network)
+    case adaptive
+    /// Cap at 1080p
+    case maxHD
+    /// Cap at 720p
+    case max720p
+}
 
 /// Error types for stream extraction
 enum StreamExtractionError: LocalizedError {
@@ -39,9 +55,30 @@ struct VideoStream: Codable {
     let quality: String
     let mimeType: String
     let qualityLabel: String?
+    let bitrate: Int?
+    let width: Int?
+    let height: Int?
+    let hasAudio: Bool
+    
+    init(url: String, quality: String, mimeType: String, qualityLabel: String?, bitrate: Int? = nil, width: Int? = nil, height: Int? = nil, hasAudio: Bool = true) {
+        self.url = url
+        self.quality = quality
+        self.mimeType = mimeType
+        self.qualityLabel = qualityLabel
+        self.bitrate = bitrate
+        self.width = width
+        self.height = height
+        self.hasAudio = hasAudio
+    }
     
     /// Quality ranking for sorting (higher is better)
     var qualityRank: Int {
+        // First, use height if available (most accurate)
+        if let h = height {
+            return h
+        }
+        
+        // Then try quality label
         if let label = qualityLabel {
             if label.contains("2160") || label.contains("4K") { return 2160 }
             if label.contains("1440") { return 1440 }
@@ -65,6 +102,14 @@ struct VideoStream: Codable {
         default: return 0
         }
     }
+    
+    /// Human readable description of the stream
+    var description: String {
+        let res = qualityLabel ?? quality
+        let audio = hasAudio ? "with audio" : "video only"
+        let br = bitrate.map { "\($0 / 1000)kbps" } ?? ""
+        return "\(res) \(audio) \(br)".trimmingCharacters(in: .whitespaces)
+    }
 }
 
 /// Service for extracting direct video stream URLs from YouTube
@@ -73,6 +118,9 @@ final class YouTubeStreamExtractor {
     
     /// Shared instance for reuse across video player views
     static let shared = YouTubeStreamExtractor()
+    
+    /// Quality preference setting - defaults to highest quality
+    var qualityPreference: StreamQualityPreference = .highest
     
     /// YouTube iOS client version - may need periodic updates when YouTube changes their API.
     /// Check https://www.apkmirror.com/apk/google-inc/youtube/ for latest versions.
@@ -85,14 +133,14 @@ final class YouTubeStreamExtractor {
     private let playerSignatureValue = 20200
     
     init() {
-        appLog("YouTubeStreamExtractor initialized", category: .player, level: .info)
+        appLog("YouTubeStreamExtractor initialized with quality preference: highest", category: .player, level: .info)
     }
     
     /// Extracts the best quality stream URL for a YouTube video
     /// - Parameter videoId: The YouTube video ID
-    /// - Returns: Direct stream URL for the video
+    /// - Returns: Direct stream URL for the video (highest quality available)
     func extractStreamURL(videoId: String) async throws -> URL {
-        appLog("Extracting stream URL for video: \(videoId)", category: .player, level: .info)
+        appLog("Extracting HIGHEST QUALITY stream URL for video: \(videoId)", category: .player, level: .info)
         
         guard !videoId.isEmpty else {
             throw StreamExtractionError.invalidVideoId
@@ -310,18 +358,22 @@ final class YouTubeStreamExtractor {
     }
     
     /// Extract best stream URL from streaming data
+    /// Prioritizes highest quality direct streams over adaptive HLS
     private func extractStreamFromData(_ streamingData: [String: Any]) throws -> URL {
         appLog("extractStreamFromData called, keys: \(streamingData.keys.joined(separator: ", "))", category: .player, level: .debug)
+        appLog("Quality preference: \(qualityPreference)", category: .player, level: .debug)
         
         // Collect all available streams
-        var streams: [VideoStream] = []
+        var combinedStreams: [VideoStream] = []  // Streams with both audio and video
+        var adaptiveVideoStreams: [VideoStream] = []  // Video-only streams (higher quality available)
         
-        // Check formats (combined audio+video streams)
+        // Check formats (combined audio+video streams) - these are preferred as they have audio
         if let formats = streamingData["formats"] as? [[String: Any]] {
             appLog("Found \(formats.count) combined formats", category: .player, level: .debug)
             for format in formats {
-                if let stream = parseStreamFormat(format) {
-                    streams.append(stream)
+                if let stream = parseStreamFormat(format, hasAudio: true) {
+                    combinedStreams.append(stream)
+                    appLog("  Combined format: \(stream.description)", category: .player, level: .debug)
                 }
             }
         } else {
@@ -329,46 +381,92 @@ final class YouTubeStreamExtractor {
         }
         
         // Check adaptiveFormats (separate audio/video streams)
-        // We prefer combined formats, but adaptive can be used as fallback
-        if streams.isEmpty, let adaptiveFormats = streamingData["adaptiveFormats"] as? [[String: Any]] {
-            appLog("Found \(adaptiveFormats.count) adaptive formats (checking for video streams)", category: .player, level: .debug)
+        // These often have HIGHER quality (4K, 1440p) but are video-only
+        if let adaptiveFormats = streamingData["adaptiveFormats"] as? [[String: Any]] {
+            appLog("Found \(adaptiveFormats.count) adaptive formats", category: .player, level: .debug)
             for format in adaptiveFormats {
-                // Only get video streams with audio or video-only streams
-                if let mimeType = format["mimeType"] as? String,
-                   mimeType.starts(with: "video/") {
-                    if let stream = parseStreamFormat(format) {
-                        streams.append(stream)
+                if let mimeType = format["mimeType"] as? String {
+                    // Only get video streams (we'll need to handle audio separately for highest quality)
+                    if mimeType.starts(with: "video/") {
+                        if let stream = parseStreamFormat(format, hasAudio: false) {
+                            adaptiveVideoStreams.append(stream)
+                            appLog("  Adaptive video: \(stream.description)", category: .player, level: .debug)
+                        }
                     }
                 }
             }
         }
         
-        appLog("Total streams collected: \(streams.count)", category: .player, level: .debug)
+        // Sort all streams by quality (highest first)
+        combinedStreams.sort { $0.qualityRank > $1.qualityRank }
+        adaptiveVideoStreams.sort { $0.qualityRank > $1.qualityRank }
         
-        // Also check for HLS manifest URL (best for iOS)
+        // Log available qualities
+        if let bestCombined = combinedStreams.first {
+            appLog("Best combined stream: \(bestCombined.qualityLabel ?? bestCombined.quality) (\(bestCombined.qualityRank)p)", category: .player, level: .info)
+        }
+        if let bestAdaptive = adaptiveVideoStreams.first {
+            appLog("Best adaptive stream: \(bestAdaptive.qualityLabel ?? bestAdaptive.quality) (\(bestAdaptive.qualityRank)p)", category: .player, level: .info)
+        }
+        
+        // For HIGHEST quality preference:
+        // 1. First try to use the highest quality combined stream (has audio)
+        // 2. Only use HLS if no direct streams available (HLS is adaptive, not always highest quality)
+        
+        // Determine what quality cap to apply
+        let maxQuality: Int
+        switch qualityPreference {
+        case .highest:
+            maxQuality = Int.max  // No cap - use highest available
+        case .adaptive:
+            maxQuality = Int.max  // Will prefer HLS below
+        case .maxHD:
+            maxQuality = 1080
+        case .max720p:
+            maxQuality = 720
+        }
+        
+        // Filter combined streams by quality cap and select the best one
+        let eligibleCombinedStreams = combinedStreams.filter { $0.qualityRank <= maxQuality }
+        
+        // For highest quality preference, use direct streams first (they provide the best quality)
+        if qualityPreference == .highest {
+            // Prefer the highest quality combined stream
+            if let bestCombined = eligibleCombinedStreams.first,
+               let url = URL(string: bestCombined.url) {
+                appLog("✓ Selected HIGHEST QUALITY combined stream: \(bestCombined.qualityLabel ?? bestCombined.quality)", category: .player, level: .success)
+                return url
+            }
+            
+            // If no combined stream, check if adaptive has higher quality
+            // Note: Adaptive streams are video-only, so playback may not have audio
+            // For now, we'll skip adaptive-only and fall back to HLS which handles audio properly
+        }
+        
+        // For adaptive preference or as fallback, use HLS
         if let hlsManifestUrl = streamingData["hlsManifestUrl"] as? String,
            let url = URL(string: hlsManifestUrl) {
-            appLog("Found HLS manifest URL - using HLS for playback", category: .player, level: .success)
+            if qualityPreference == .adaptive {
+                appLog("✓ Selected HLS adaptive stream (as preferred)", category: .player, level: .success)
+            } else {
+                appLog("✓ Selected HLS stream as fallback", category: .player, level: .success)
+            }
             return url
-        } else {
-            appLog("No HLS manifest URL found", category: .player, level: .debug)
         }
         
-        // Sort streams by quality and pick the best one
-        streams.sort { $0.qualityRank > $1.qualityRank }
-        
-        guard let bestStream = streams.first,
-              let url = URL(string: bestStream.url) else {
-            appLog("No playable streams found", category: .player, level: .error)
-            throw StreamExtractionError.noStreamAvailable
+        // Final fallback: any available combined stream
+        if let bestStream = eligibleCombinedStreams.first ?? combinedStreams.first,
+           let url = URL(string: bestStream.url) {
+            appLog("✓ Selected stream (fallback): \(bestStream.qualityLabel ?? bestStream.quality)", category: .player, level: .success)
+            return url
         }
         
-        appLog("Selected stream: \(bestStream.quality) (\(bestStream.qualityLabel ?? "unknown"))", category: .player, level: .info)
-        return url
+        appLog("No playable streams found", category: .player, level: .error)
+        throw StreamExtractionError.noStreamAvailable
     }
     
     /// Parse a single format entry into a VideoStream
-    private func parseStreamFormat(_ format: [String: Any]) -> VideoStream? {
+    private func parseStreamFormat(_ format: [String: Any], hasAudio: Bool = true) -> VideoStream? {
         guard let url = format["url"] as? String,
               let mimeType = format["mimeType"] as? String,
               let quality = format["quality"] as? String else {
@@ -376,12 +474,19 @@ final class YouTubeStreamExtractor {
         }
         
         let qualityLabel = format["qualityLabel"] as? String
+        let bitrate = format["bitrate"] as? Int
+        let width = format["width"] as? Int
+        let height = format["height"] as? Int
         
         return VideoStream(
             url: url,
             quality: quality,
             mimeType: mimeType,
-            qualityLabel: qualityLabel
+            qualityLabel: qualityLabel,
+            bitrate: bitrate,
+            width: width,
+            height: height,
+            hasAudio: hasAudio
         )
     }
 }

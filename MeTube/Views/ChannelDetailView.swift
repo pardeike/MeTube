@@ -3,6 +3,7 @@
 //  MeTube
 //
 //  Detail view for a specific channel showing its videos
+//  Note: iOS only - tvOS uses TVChannelDetailView
 //
 
 import SwiftUI
@@ -15,6 +16,7 @@ enum ChannelVideoFilter: String, CaseIterable {
     case skipped = "Skipped"
 }
 
+#if os(iOS)
 struct ChannelDetailView: View {
     let channel: Channel
     @EnvironmentObject var feedViewModel: FeedViewModel
@@ -236,3 +238,4 @@ struct EmptyChannelView: View {
         .environmentObject(viewModel)
     }
 }
+#endif // os(iOS)

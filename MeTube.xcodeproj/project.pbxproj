@@ -7,27 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		"'100000001'" = {isa = PBXBuildFile; fileRef = 200000001; };
+		"'100000002'" = {isa = PBXBuildFile; fileRef = 200000002; };
+		"'100000003'" = {isa = PBXBuildFile; fileRef = 200000003; };
+		"'100000004'" = {isa = PBXBuildFile; fileRef = 200000004; };
+		"'100000005'" = {isa = PBXBuildFile; fileRef = 200000005; };
+		"'100000006'" = {isa = PBXBuildFile; fileRef = 200000006; };
+		"'100000007'" = {isa = PBXBuildFile; fileRef = 200000007; };
+		"'100000008'" = {isa = PBXBuildFile; fileRef = 200000008; };
+		"'100000009'" = {isa = PBXBuildFile; fileRef = 200000009; };
+		"'100000010'" = {isa = PBXBuildFile; fileRef = 200000010; };
+		"'100000011'" = {isa = PBXBuildFile; fileRef = 200000011; };
+		"'100000012'" = {isa = PBXBuildFile; fileRef = 200000012; };
+		"'100000013'" = {isa = PBXBuildFile; fileRef = 200000013; };
+		"'100000014'" = {isa = PBXBuildFile; fileRef = 200000014; };
+		"'100000015'" = {isa = PBXBuildFile; fileRef = 200000015; };
+		"'100000016'" = {isa = PBXBuildFile; fileRef = 200000016; };
+		"'100000017'" = {isa = PBXBuildFile; fileRef = 200000017; };
+		"'100000018'" = {isa = PBXBuildFile; fileRef = 200000020; };
 		0673A8962EE3044800C31341 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
 		0673A8982EE30C8400C31341 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8972EE30C8400C31341 /* AppSettings.swift */; };
 		0F8444D09091048ECB3B1724 /* ChannelRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AF423DBD7CC0C08E0734E3 /* ChannelRepository.swift */; };
-		'100000001' = {isa = PBXBuildFile; fileRef = 200000001; };
-		'100000002' = {isa = PBXBuildFile; fileRef = 200000002; };
-		'100000003' = {isa = PBXBuildFile; fileRef = 200000003; };
-		'100000004' = {isa = PBXBuildFile; fileRef = 200000004; };
-		'100000005' = {isa = PBXBuildFile; fileRef = 200000005; };
-		'100000006' = {isa = PBXBuildFile; fileRef = 200000006; };
-		'100000007' = {isa = PBXBuildFile; fileRef = 200000007; };
-		'100000008' = {isa = PBXBuildFile; fileRef = 200000008; };
-		'100000009' = {isa = PBXBuildFile; fileRef = 200000009; };
-		'100000010' = {isa = PBXBuildFile; fileRef = 200000010; };
-		'100000011' = {isa = PBXBuildFile; fileRef = 200000011; };
-		'100000012' = {isa = PBXBuildFile; fileRef = 200000012; };
-		'100000013' = {isa = PBXBuildFile; fileRef = 200000013; };
-		'100000014' = {isa = PBXBuildFile; fileRef = 200000014; };
-		'100000015' = {isa = PBXBuildFile; fileRef = 200000015; };
-		'100000016' = {isa = PBXBuildFile; fileRef = 200000016; };
-		'100000017' = {isa = PBXBuildFile; fileRef = 200000017; };
-		'100000018' = {isa = PBXBuildFile; fileRef = 200000020; };
 		15F3424394ADF866D92169BE /* VideoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE54DF8A09FCE1A6E60C9DD /* VideoRepository.swift */; };
 		3E0E48ACAC479999A727A93B /* VideoEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85644FF4BBFE1D7727820ECC /* VideoEntity.swift */; };
 		5BD041818E1A3B782FFEF745 /* StatusRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */; };
@@ -39,48 +39,60 @@
 		E1B0B1E12EE63B2F00AF77A6 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */; };
 		E53945E3B2E6C8A907E1851C /* StatusEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */; };
 		F2A84B5E8E1DAE2964CF20E2 /* HubSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */; };
+		AA1111111111111111111111 /* PlatformUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60943A59224648B1E37CF1D /* PlatformUtilities.swift */; };
+		AA2222222222222222222222 /* TVLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC914AEA9F19C94BE253681A /* TVLoginView.swift */; };
+		AA3333333333333333333333 /* TVFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19474B25B4F69D3DC99AF61F /* TVFeedView.swift */; };
+		AA4444444444444444444444 /* TVChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A42A4B1A80EFDCCFAE357182 /* TVChannelsView.swift */; };
+		AA5555555555555555555555 /* TVVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3C4E63A4348D7C924C2954 /* TVVideoPlayerView.swift */; };
+		AA6666666666666666666666 /* TVVideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D746E19FEFE48A7B56475C /* TVVideoRowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		"'200000000'" = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		"'200000001'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
+		"'200000002'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		"'200000003'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Channel.swift; sourceTree = "<group>"; };
+		"'200000004'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
+		"'200000005'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeAPIModels.swift; sourceTree = "<group>"; };
+		"'200000006'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
+		"'200000007'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
+		"'200000008'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationManager.swift; sourceTree = "<group>"; };
+		"'200000009'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+		"'200000010'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewModel.swift; sourceTree = "<group>"; };
+		"'200000011'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		"'200000012'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		"'200000013'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelsView.swift; sourceTree = "<group>"; };
+		"'200000014'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelDetailView.swift; sourceTree = "<group>"; };
+		"'200000015'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
+		"'200000016'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRowView.swift; sourceTree = "<group>"; };
+		"'200000017'" = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		"'200000018'" = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		"'200000019'" = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
+		"'200000020'" = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
+		03D746E19FEFE48A7B56475C /* TVVideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TVVideoRowView.swift; path = MeTube/Views/tvOS/TVVideoRowView.swift; sourceTree = SOURCE_ROOT; };
 		0673A8952EE3044800C31341 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
 		0673A8972EE30C8400C31341 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		1697480D86B3E079E8226D5B /* ChannelEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChannelEntity.swift; path = MeTube/Models/Persistence/ChannelEntity.swift; sourceTree = SOURCE_ROOT; };
-		'200000000' = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		'200000001' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
-		'200000002' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		'200000003' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Channel.swift; sourceTree = "<group>"; };
-		'200000004' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
-		'200000005' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeAPIModels.swift; sourceTree = "<group>"; };
-		'200000006' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
-		'200000007' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
-		'200000008' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationManager.swift; sourceTree = "<group>"; };
-		'200000009' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
-		'200000010' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewModel.swift; sourceTree = "<group>"; };
-		'200000011' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		'200000012' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
-		'200000013' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelsView.swift; sourceTree = "<group>"; };
-		'200000014' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelDetailView.swift; sourceTree = "<group>"; };
-		'200000015' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
-		'200000016' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRowView.swift; sourceTree = "<group>"; };
-		'200000017' = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		'200000018' = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		'200000019' = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
-		'200000020' = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
+		19474B25B4F69D3DC99AF61F /* TVFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TVFeedView.swift; path = MeTube/Views/tvOS/TVFeedView.swift; sourceTree = SOURCE_ROOT; };
 		2BCF4ABC875044960A321F21 /* PlayerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlayerConfig.swift; path = MeTube/Models/PlayerConfig.swift; sourceTree = SOURCE_ROOT; };
 		4E184F31BF701DD6A0668F2F /* YouTubeSDKPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = YouTubeSDKPlayerView.swift; path = MeTube/Views/YouTubeSDKPlayerView.swift; sourceTree = SOURCE_ROOT; };
 		5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusEntity.swift; path = MeTube/Models/Persistence/StatusEntity.swift; sourceTree = SOURCE_ROOT; };
+		7C3C4E63A4348D7C924C2954 /* TVVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TVVideoPlayerView.swift; path = MeTube/Views/tvOS/TVVideoPlayerView.swift; sourceTree = SOURCE_ROOT; };
 		85644FF4BBFE1D7727820ECC /* VideoEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VideoEntity.swift; path = MeTube/Models/Persistence/VideoEntity.swift; sourceTree = SOURCE_ROOT; };
 		8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusRepository.swift; path = MeTube/Repositories/StatusRepository.swift; sourceTree = SOURCE_ROOT; };
 		9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HubSyncManager.swift; path = MeTube/Services/Sync/HubSyncManager.swift; sourceTree = SOURCE_ROOT; };
 		9FE54DF8A09FCE1A6E60C9DD /* VideoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VideoRepository.swift; path = MeTube/Repositories/VideoRepository.swift; sourceTree = SOURCE_ROOT; };
+		A42A4B1A80EFDCCFAE357182 /* TVChannelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TVChannelsView.swift; path = MeTube/Views/tvOS/TVChannelsView.swift; sourceTree = SOURCE_ROOT; };
 		A8AF423DBD7CC0C08E0734E3 /* ChannelRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChannelRepository.swift; path = MeTube/Repositories/ChannelRepository.swift; sourceTree = SOURCE_ROOT; };
 		C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusSyncManager.swift; path = MeTube/Services/Sync/StatusSyncManager.swift; sourceTree = SOURCE_ROOT; };
+		DC914AEA9F19C94BE253681A /* TVLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TVLoginView.swift; path = MeTube/Views/tvOS/TVLoginView.swift; sourceTree = SOURCE_ROOT; };
 		DF6148879EF59164E980DFE2 /* ModelConverters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ModelConverters.swift; path = MeTube/Models/ModelConverters.swift; sourceTree = SOURCE_ROOT; };
 		E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubServerService.swift; sourceTree = "<group>"; };
+		E60943A59224648B1E37CF1D /* PlatformUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlatformUtilities.swift; path = MeTube/Shared/PlatformUtilities.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		'300000001' = {
+		"'300000001'" = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -90,15 +102,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		'400000000' = {
+		"'400000000'" = {
 			isa = PBXGroup;
 			children = (
 				400000001,
 				400000010,
+				E60943A59224648B1E37CF1D /* PlatformUtilities.swift */,
+				DC914AEA9F19C94BE253681A /* TVLoginView.swift */,
+				19474B25B4F69D3DC99AF61F /* TVFeedView.swift */,
+				A42A4B1A80EFDCCFAE357182 /* TVChannelsView.swift */,
+				7C3C4E63A4348D7C924C2954 /* TVVideoPlayerView.swift */,
+				03D746E19FEFE48A7B56475C /* TVVideoRowView.swift */,
 			);
 			sourceTree = "<group>";
 		};
-		'400000001' = {
+		"'400000001'" = {
 			isa = PBXGroup;
 			children = (
 				400000002,
@@ -116,7 +134,7 @@
 			path = MeTube;
 			sourceTree = "<group>";
 		};
-		'400000002' = {
+		"'400000002'" = {
 			isa = PBXGroup;
 			children = (
 				200000001,
@@ -125,7 +143,7 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		'400000003' = {
+		"'400000003'" = {
 			isa = PBXGroup;
 			children = (
 				0673A8972EE30C8400C31341 /* AppSettings.swift */,
@@ -141,7 +159,7 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		'400000004' = {
+		"'400000004'" = {
 			isa = PBXGroup;
 			children = (
 				200000009,
@@ -150,7 +168,7 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-		'400000005' = {
+		"'400000005'" = {
 			isa = PBXGroup;
 			children = (
 				200000011,
@@ -164,7 +182,7 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		'400000006' = {
+		"'400000006'" = {
 			isa = PBXGroup;
 			children = (
 				0673A8952EE3044800C31341 /* Logger.swift */,
@@ -179,7 +197,7 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
-		'400000008' = {
+		"'400000008'" = {
 			isa = PBXGroup;
 			children = (
 				200000017,
@@ -187,7 +205,7 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
-		'400000009' = {
+		"'400000009'" = {
 			isa = PBXGroup;
 			children = (
 				200000016,
@@ -195,7 +213,7 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		'400000010' = {
+		"'400000010'" = {
 			isa = PBXGroup;
 			children = (
 				200000000,
@@ -206,7 +224,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		'500000001' = {
+		"'500000001'" = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 600000003;
 			buildPhases = (
@@ -226,7 +244,7 @@
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		'700000001' = {
+		"'700000001'" = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
@@ -257,7 +275,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		'500000003' = {
+		"'500000003'" = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -268,7 +286,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		'500000002' = {
+		"'500000002'" = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -303,13 +321,19 @@
 				D63945F4B4452FBB80E3274F /* ModelConverters.swift in Sources */,
 				B6B9483EA9F3CC47B7E77883 /* PlayerConfig.swift in Sources */,
 				C2164322B1C913958BE0DCD9 /* YouTubeSDKPlayerView.swift in Sources */,
+				AA1111111111111111111111 /* PlatformUtilities.swift in Sources */,
+				AA2222222222222222222222 /* TVLoginView.swift in Sources */,
+				AA3333333333333333333333 /* TVFeedView.swift in Sources */,
+				AA4444444444444444444444 /* TVChannelsView.swift in Sources */,
+				AA5555555555555555555555 /* TVVideoPlayerView.swift in Sources */,
+				AA6666666666666666666666 /* TVVideoRowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		'800000001' = {
+		"'800000001'" = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -374,7 +398,7 @@
 			};
 			name = Debug;
 		};
-		'800000002' = {
+		"'800000002'" = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -432,7 +456,7 @@
 			};
 			name = Release;
 		};
-		'800000003' = {
+		"'800000003'" = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -466,7 +490,7 @@
 			};
 			name = Debug;
 		};
-		'800000004' = {
+		"'800000004'" = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -503,7 +527,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		'600000001' = {
+		"'600000001'" = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				800000001,
@@ -512,7 +536,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		'600000003' = {
+		"'600000003'" = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				800000003,

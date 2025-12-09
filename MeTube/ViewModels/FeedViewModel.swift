@@ -8,7 +8,9 @@
 import Foundation
 import Combine
 import SwiftData
+#if os(iOS)
 import BackgroundTasks
+#endif
 
 // MARK: - Feed Configuration
 
@@ -550,7 +552,8 @@ class FeedViewModel: ObservableObject {
         }
     }
     
-    /// Schedule background refresh (called from background context)
+    #if os(iOS)
+    /// Schedule background refresh (called from background context, iOS only)
     nonisolated func scheduleBackgroundRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: FeedConfig.backgroundTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: FeedConfig.backgroundRefreshInterval)
@@ -562,4 +565,5 @@ class FeedViewModel: ObservableObject {
             appLog("Failed to schedule background refresh: \(error)", category: .feed, level: .error)
         }
     }
+    #endif
 }

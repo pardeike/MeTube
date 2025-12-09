@@ -4,9 +4,12 @@
 //
 //  YouTube player using WKWebView with YouTube IFrame Player API
 //  This is an alternative to the direct stream player
+//  Note: iOS only - tvOS uses AVPlayer directly
 //
 
 import SwiftUI
+
+#if os(iOS)
 import WebKit
 
 // MARK: - YouTube SDK Player View
@@ -326,3 +329,4 @@ struct YouTubeWebView: UIViewRepresentable {
     .frame(height: 300)
     .background(Color.black)
 }
+#endif // os(iOS)

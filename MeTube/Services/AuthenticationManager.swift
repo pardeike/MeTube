@@ -3,10 +3,13 @@
 //  MeTube
 //
 //  Manages Google OAuth authentication for YouTube API access
+//  Supports both iOS (web auth) and tvOS (iCloud-synced credentials)
 //
 
 import Foundation
+#if os(iOS)
 import AuthenticationServices
+#endif
 import Security
 
 // MARK: - OAuth Configuration
@@ -51,6 +54,15 @@ class AuthenticationManager: NSObject, ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
     
+    /// Indicates whether the platform supports direct sign-in (iOS only)
+    var canSignInDirectly: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+    
     private let tokenKey = "com.metube.oauth.token"
     private let refreshTokenKey = "com.metube.oauth.refreshToken"
     
@@ -66,7 +78,9 @@ class AuthenticationManager: NSObject, ObservableObject {
     // Cached app settings to avoid redundant CloudKit fetches
     private var cachedAppSettings: AppSettings?
     
+    #if os(iOS)
     private var webAuthSession: ASWebAuthenticationSession?
+    #endif
     private let cloudKitService = CloudKitService()
 
     @MainActor
@@ -150,8 +164,24 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     /// Initiates the OAuth sign-in flow
+    /// On iOS: Uses ASWebAuthenticationSession for web-based OAuth
+    /// On tvOS: This method should not be called directly; use reloadFromCloud() instead
     @MainActor
     func signIn() async {
+        #if os(iOS)
+        await signInWithWebAuth()
+        #else
+        // On tvOS, we cannot do web-based OAuth
+        // Instead, reload from CloudKit to get credentials synced from iOS app
+        error = "Please sign in using the MeTube app on your iPhone or iPad. Your login will sync automatically via iCloud."
+        await reloadFromCloud()
+        #endif
+    }
+    
+    #if os(iOS)
+    /// iOS-specific web authentication sign-in
+    @MainActor
+    private func signInWithWebAuth() async {
         guard !clientId.isEmpty else {
             error = "Google Client ID not configured. Please set up OAuth credentials."
             return
@@ -192,6 +222,16 @@ class AuthenticationManager: NSObject, ObservableObject {
         
         session.start()
     }
+    #endif
+    
+    /// Reload authentication status from CloudKit (useful for tvOS to get synced credentials)
+    @MainActor
+    func reloadFromCloud() async {
+        isLoading = true
+        await loadSettingsFromCloudKit()
+        loadStoredToken()
+        isLoading = false
+    }
     
     /// Signs out the user
     @MainActor
@@ -214,6 +254,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // MARK: - Private Methods
     
+    #if os(iOS)
     @MainActor
     private func handleAuthCallback(callbackURL: URL?, error: Error?) async {
         isLoading = false
@@ -233,6 +274,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         // Exchange code for tokens
         await exchangeCodeForToken(code: code)
     }
+    #endif
     
     private func exchangeCodeForToken(code: String) async {
         var request = URLRequest(url: OAuthConfig.tokenURL)
@@ -303,7 +345,18 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Token Storage (Keychain)
+    // MARK: - Token Storage (Keychain with iCloud Sync)
+    
+    /// Keychain access group for iCloud sync (requires entitlement)
+    /// Using the app's bundle identifier as the base for the access group
+    private var keychainAccessGroup: String? {
+        // Note: For iCloud Keychain sync to work, both iOS and tvOS apps must:
+        // 1. Have the same team ID
+        // 2. Use the same keychain-access-groups entitlement
+        // 3. Enable iCloud Keychain in capabilities
+        // The access group format is: $(TeamIdentifierPrefix)com.metube.app.shared
+        return nil // Using default access group - iCloud sync works automatically if properly configured
+    }
     
     @MainActor private func loadStoredToken() {
         // Check authentication status - this handles both access tokens and refresh tokens
@@ -311,28 +364,65 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func saveToken(accessToken: String, refreshToken: String?, expiresIn: Int) {
-        // Save access token to Keychain
+        // Save access token to Keychain with iCloud sync enabled
         let tokenData = accessToken.data(using: .utf8)!
-        let tokenQuery: [String: Any] = [
+        var tokenQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: tokenKey,
-            kSecValueData as String: tokenData
+            kSecValueData as String: tokenData,
+            kSecAttrSynchronizable as String: kCFBooleanTrue as Any // Enable iCloud sync
         ]
         
-        SecItemDelete(tokenQuery as CFDictionary)
-        SecItemAdd(tokenQuery as CFDictionary, nil)
+        if let accessGroup = keychainAccessGroup {
+            tokenQuery[kSecAttrAccessGroup as String] = accessGroup
+        }
+        
+        // Delete existing token first
+        var deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: tokenKey,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+        ]
+        if let accessGroup = keychainAccessGroup {
+            deleteQuery[kSecAttrAccessGroup as String] = accessGroup
+        }
+        SecItemDelete(deleteQuery as CFDictionary)
+        
+        // Add new token
+        let addStatus = SecItemAdd(tokenQuery as CFDictionary, nil)
+        if addStatus != errSecSuccess {
+            appLog("Failed to save access token to keychain: \(addStatus)", category: .auth, level: .error)
+        }
         
         // Save refresh token if provided
         if let refreshToken = refreshToken {
             let refreshData = refreshToken.data(using: .utf8)!
-            let refreshQuery: [String: Any] = [
+            var refreshQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrAccount as String: refreshTokenKey,
-                kSecValueData as String: refreshData
+                kSecValueData as String: refreshData,
+                kSecAttrSynchronizable as String: kCFBooleanTrue as Any // Enable iCloud sync
             ]
             
-            SecItemDelete(refreshQuery as CFDictionary)
-            SecItemAdd(refreshQuery as CFDictionary, nil)
+            if let accessGroup = keychainAccessGroup {
+                refreshQuery[kSecAttrAccessGroup as String] = accessGroup
+            }
+            
+            // Delete existing refresh token first
+            var deleteRefreshQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: refreshTokenKey,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            if let accessGroup = keychainAccessGroup {
+                deleteRefreshQuery[kSecAttrAccessGroup as String] = accessGroup
+            }
+            SecItemDelete(deleteRefreshQuery as CFDictionary)
+            
+            let refreshAddStatus = SecItemAdd(refreshQuery as CFDictionary, nil)
+            if refreshAddStatus != errSecSuccess {
+                appLog("Failed to save refresh token to keychain: \(refreshAddStatus)", category: .auth, level: .error)
+            }
         }
         
         // Save expiration date to CloudKit
@@ -343,12 +433,17 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func retrieveToken() -> String? {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: tokenKey,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny // Search both synced and non-synced items
         ]
+        
+        if let accessGroup = keychainAccessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
         
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -363,12 +458,17 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func retrieveRefreshToken() -> String? {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: refreshTokenKey,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny // Search both synced and non-synced items
         ]
+        
+        if let accessGroup = keychainAccessGroup {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
         
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -383,27 +483,39 @@ class AuthenticationManager: NSObject, ObservableObject {
     }
     
     private func deleteToken() {
-        let tokenQuery: [String: Any] = [
+        var tokenQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: tokenKey
+            kSecAttrAccount as String: tokenKey,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
+        if let accessGroup = keychainAccessGroup {
+            tokenQuery[kSecAttrAccessGroup as String] = accessGroup
+        }
         SecItemDelete(tokenQuery as CFDictionary)
         
-        let refreshQuery: [String: Any] = [
+        var refreshQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: refreshTokenKey
+            kSecAttrAccount as String: refreshTokenKey,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
         ]
+        if let accessGroup = keychainAccessGroup {
+            refreshQuery[kSecAttrAccessGroup as String] = accessGroup
+        }
         SecItemDelete(refreshQuery as CFDictionary)
     }
 }
 
 // MARK: - ASWebAuthenticationPresentationContextProviding
 
+#if os(iOS)
+import AuthenticationServices
+
 extension AuthenticationManager: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         return ASPresentationAnchor()
     }
 }
+#endif
 
 // MARK: - Token Response
 
