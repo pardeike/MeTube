@@ -367,18 +367,16 @@ struct VideoPlayerView: View {
         }
     }
     
-    /// Clean up player resources (only needed for direct player)
+    /// Clean up player resources
     private func cleanupPlayer() {
-        // Only cleanup AVPlayer resources for direct player mode
-        if PlayerConfig.useDirectPlayer {
-            player?.pause()
-            player?.replaceCurrentItem(with: nil)
-            player = nil
+        // Always cleanup AVPlayer resources if they exist
+        if let player = player {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            self.player = nil
             appLog("Direct player cleaned up", category: .player, level: .debug)
-        } else {
-            // SDK player cleanup is handled by the WKWebView lifecycle
-            appLog("SDK player cleanup handled by WKWebView", category: .player, level: .debug)
         }
+        // SDK player cleanup is handled by WKWebView's lifecycle automatically
     }
     
     /// Marks the current video as watched and advances to the next video if available

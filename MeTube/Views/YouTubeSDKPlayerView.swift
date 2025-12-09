@@ -92,8 +92,37 @@ struct YouTubeWebView: UIViewRepresentable {
         }
     }
     
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        // Remove message handler to prevent memory leaks
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "youtubePlayer")
+    }
+    
+    /// Sanitizes a video ID for safe interpolation into JavaScript strings
+    /// YouTube video IDs are 11 characters containing alphanumeric, hyphens, and underscores
+    private func sanitizeVideoId(_ videoId: String) -> String {
+        // Validate that the video ID matches expected YouTube format
+        // If not, escape potentially dangerous characters as a fallback
+        let validCharacterSet = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let isValidFormat = videoId.count == 11 && 
+                           videoId.unicodeScalars.allSatisfy { validCharacterSet.contains($0) }
+        
+        if isValidFormat {
+            return videoId
+        }
+        
+        // Fallback: escape any potentially problematic characters for JavaScript string interpolation
+        return videoId
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+    }
+    
     /// Generates the HTML content with YouTube IFrame Player API
     private func generatePlayerHTML(videoId: String, autoPlay: Bool) -> String {
+        let escapedVideoId = sanitizeVideoId(videoId)
         let autoPlayValue = autoPlay ? 1 : 0
         let showRelatedVideos = PlayerConfig.showRelatedVideos ? 1 : 0
         let playInline = PlayerConfig.playInline ? 1 : 0
@@ -143,7 +172,7 @@ struct YouTubeWebView: UIViewRepresentable {
                 
                 function onYouTubeIframeAPIReady() {
                     player = new YT.Player('player', {
-                        videoId: '\(videoId)',
+                        videoId: '\(escapedVideoId)',
                         playerVars: {
                             'autoplay': \(autoPlayValue),
                             'playsinline': \(playInline),
@@ -166,7 +195,7 @@ struct YouTubeWebView: UIViewRepresentable {
                     // Notify Swift that player is ready
                     window.webkit.messageHandlers.youtubePlayer.postMessage({
                         event: 'ready',
-                        videoId: '\(videoId)'
+                        videoId: '\(escapedVideoId)'
                     });
                     
                     // Auto-play if enabled
