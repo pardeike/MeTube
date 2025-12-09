@@ -224,7 +224,6 @@ struct FeedView: View {
                 }
                 .hidden()
             )
-            }
         }
     }
     

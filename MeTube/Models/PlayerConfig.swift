@@ -26,12 +26,6 @@ enum PlayerConfig {
     /// - More reliable as it uses official APIs
     /// - Shows YouTube branding/controls
     /// - Better compatibility with YouTube's terms of service
-    ///
-    /// **Note about SponsorBlock:**
-    /// The YouTube IFrame API does NOT natively support SponsorBlock.
-    /// SponsorBlock requires external API calls and custom implementation.
-    /// The IFrame API provides getCurrentTime() and seekTo() which could be
-    /// used to implement sponsor skipping with additional development.
     static let useDirectPlayer: Bool = true
     
     // MARK: - Player Settings
