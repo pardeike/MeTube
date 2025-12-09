@@ -375,20 +375,7 @@ struct VideoPlayerView: View {
                 }
             }
             
-            // Overlay Controls (auto-hiding)
-            VStack {
-                // Top Bar with controls and info
-                if showingControls {
-                    landscapeTopBar
-                }
-                
-                Spacer()
-                
-                // Bottom controls area
-                if showingControls {
-                    bottomControlsOverlay
-                }
-            }
+            // Overlay Controls removed in landscape mode for cleaner viewing experience
             
             // Navigation feedback indicator
             if let feedback = navigationFeedback {
@@ -400,22 +387,7 @@ struct VideoPlayerView: View {
                 videoInfoOverlay
             }
         }
-        .onTapGesture {
-            // Only toggle controls if not showing video info
-            if !showingVideoInfo && !showingControls {
-                appLog("Player view tapped - showing controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls = true
-                }
-                resetControlsTimer()
-            } else if !showingVideoInfo && showingControls {
-                // Tapping when controls are visible hides them
-                appLog("Player view tapped - hiding controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls = false
-                }
-            }
-        }
+        // Tap gesture removed in landscape mode - overlay controls are hidden
         .gesture(
             DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
                 .onEnded { value in
