@@ -392,81 +392,6 @@ struct VideoPlayerView: View {
         )
     }
     
-    /// Top bar for landscape mode (with gradient background)
-    @ViewBuilder
-    private var landscapeTopBar: some View {
-        VStack(spacing: 0) {
-            // Control buttons row
-            HStack {
-                Button(action: {
-                    appLog("Dismiss button tapped", category: .player, level: .info)
-                    dismissPlayerView()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-                
-                Spacer()
-                
-                // Share Button for YouTube URL
-                SharePlayButton(videoId: video.id)
-                    .frame(width: 44, height: 44)
-                
-                // AirPlay Button
-                AirPlayButton()
-                    .frame(width: 44, height: 44)
-                
-                Button(action: {
-                    appLog("Mark watched button tapped", category: .player, level: .info)
-                    markWatchedAndAdvance()
-                }) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-            }
-            .padding()
-            
-            // Video Info Bar
-            VStack(alignment: .leading, spacing: 8) {
-                Text(video.title)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                
-                Text(video.channelName)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                
-                HStack {
-                    Text(video.durationString)
-                    Text("•")
-                    Text(video.relativePublishDate)
-                    
-                    Spacer()
-                }
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.7), Color.clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-    
     /// Video info overlay (shared between portrait and landscape)
     @ViewBuilder
     private var videoInfoOverlay: some View {
@@ -648,25 +573,6 @@ struct VideoPlayerView: View {
     }
     
     // MARK: - Bottom Controls
-    
-    /// Bottom control bar with playback controls and progress (landscape mode)
-    @ViewBuilder
-    private var bottomControlsOverlay: some View {
-        VStack(spacing: 12) {
-            playbackProgressBarView
-            navigationButtonsView
-            positionIndicatorView
-            actionButtonsView
-        }
-        .padding()
-        .background(
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
     
     /// Loading overlay view
     @ViewBuilder
