@@ -74,10 +74,10 @@
 		E1EF0DC92EE8D45200762E56 /* TVFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC22EE8D45200762E56 /* TVFeedView.swift */; };
 		E1EF0DCA2EE8D45200762E56 /* TVVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC42EE8D45200762E56 /* TVVideoPlayerView.swift */; };
 		E1EF0DCB2EE8D45200762E56 /* TVChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC12EE8D45200762E56 /* TVChannelsView.swift */; };
-		E1EF0DCD2EE8D50800762E56 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1EF0DCC2EE8D50800762E56 /* Assets.xcassets */; };
 		E1EF0DD22EE8D67600762E56 /* StatusRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */; };
 		E1EF0DD32EE8D67600762E56 /* VideoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DD02EE8D67600762E56 /* VideoRepository.swift */; };
 		E1EF0DD42EE8D67600762E56 /* ChannelRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DCE2EE8D67600762E56 /* ChannelRepository.swift */; };
+		E1EF0DD52EE8EA8400762E56 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1EF0DCC2EE8D50800762E56 /* Assets.xcassets */; };
 		E53945E3B2E6C8A907E1851C /* StatusEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */; };
 		F2A84B5E8E1DAE2964CF20E2 /* HubSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */; };
 /* End PBXBuildFile section */
@@ -380,7 +380,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E1EF0DCD2EE8D50800762E56 /* Assets.xcassets in Resources */,
+				E1EF0DD52EE8EA8400762E56 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -673,8 +673,9 @@
 		E1EF0D3C2EE8C7E500762E56 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Brand Assets";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "MeTube-tvOS/MeTube.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -708,8 +709,9 @@
 		E1EF0D3D2EE8C7E500762E56 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Brand Assets";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "MeTube-tvOS/MeTube.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
