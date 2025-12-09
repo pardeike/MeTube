@@ -32,6 +32,7 @@ enum HubConfig {
 enum HubError: LocalizedError, Equatable {
     case serverUnhealthy
     case registrationFailed
+    case reconciliationFailed
     case fetchFailed
     case networkError(Error)
     case decodingError(Error)
@@ -45,6 +46,8 @@ enum HubError: LocalizedError, Equatable {
             return "Hub server is unavailable. Please try again later."
         case .registrationFailed:
             return "Could not register your channels. Please check your connection."
+        case .reconciliationFailed:
+            return "Could not check for new videos. Please try again."
         case .fetchFailed:
             return "Could not fetch videos. Pull to refresh to try again."
         case .networkError(let error):
@@ -65,6 +68,7 @@ enum HubError: LocalizedError, Equatable {
         switch (lhs, rhs) {
         case (.serverUnhealthy, .serverUnhealthy),
              (.registrationFailed, .registrationFailed),
+             (.reconciliationFailed, .reconciliationFailed),
              (.fetchFailed, .fetchFailed),
              (.invalidResponse, .invalidResponse),
              (.userNotFound, .userNotFound),
@@ -99,6 +103,11 @@ struct RegisterChannelsRequest: Codable {
 
 struct RegisterChannelsResponse: Codable {
     let message: String
+}
+
+struct ReconcileResponse: Codable {
+    let message: String
+    let newVideosCount: Int
 }
 
 struct FeedResponse: Codable {
@@ -244,6 +253,43 @@ final class HubServerService: Sendable {
             
             let result = try JSONDecoder().decode(RegisterChannelsResponse.self, from: data)
             appLog("Channel registration successful: \(result.message)", category: .feed, level: .success)
+        }
+    }
+    
+    // MARK: - Reconciliation
+    
+    /// Triggers on-demand reconciliation to check for new videos
+    /// This should be called before fetching the feed to ensure fresh data
+    /// - Parameter userId: The user's unique ID
+    /// - Returns: Number of new videos found during reconciliation
+    func reconcileChannels(userId: String) async throws -> Int {
+        appLog("Triggering reconciliation for user \(userId)", category: .feed, level: .info)
+        
+        return try await fetchWithRetry { [self] in
+            guard let url = URL(string: "\(baseURL)/api/users/\(userId)/reconcile") else {
+                throw HubError.invalidURL
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            
+            let (data, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw HubError.invalidResponse
+            }
+            
+            switch httpResponse.statusCode {
+            case 200:
+                let result = try JSONDecoder().decode(ReconcileResponse.self, from: data)
+                appLog("Reconciliation completed: \(result.newVideosCount) new videos found", category: .feed, level: .success)
+                return result.newVideosCount
+            case 404:
+                throw HubError.userNotFound
+            default:
+                appLog("Reconciliation failed with status code \(httpResponse.statusCode)", category: .feed, level: .error)
+                throw HubError.reconciliationFailed
+            }
         }
     }
     

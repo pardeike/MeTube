@@ -109,8 +109,11 @@ struct MeTubeApp: App {
                 // Schedule background refresh when app enters background
                 feedViewModel.scheduleBackgroundRefresh()
             case .active:
-                // Trigger non-blocking sync when app becomes active
+                // Trigger reconciliation and sync when app becomes active
                 Task {
+                    // First, reconcile to check for new videos (respects 15-minute rate limit)
+                    await feedViewModel.reconcileOnForeground()
+                    // Then, perform regular sync if needed
                     await feedViewModel.syncIfNeeded()
                 }
             default:
