@@ -67,13 +67,11 @@ struct TVVideoPlayerView: View {
         .onAppear {
             loadVideo()
             // Prevent device from sleeping during playback
-            UIApplication.shared.isIdleTimerDisabled = true
-            appLog("tvOS: Device sleep disabled for playback", category: .player, level: .debug)
+            disableDeviceSleep()
         }
         .onDisappear {
             // Re-enable device sleep
-            UIApplication.shared.isIdleTimerDisabled = false
-            appLog("tvOS: Device sleep re-enabled", category: .player, level: .debug)
+            enableDeviceSleep()
             checkAndMarkWatchedIfNeeded()
             cleanupPlayer()
         }
@@ -199,8 +197,7 @@ struct TVVideoPlayerView: View {
                     appLog("tvOS: Video playback ended", category: .player, level: .info)
                     self.videoEnded = true
                     // Allow device to sleep when video ends
-                    UIApplication.shared.isIdleTimerDisabled = false
-                    appLog("tvOS: Device sleep enabled (video ended)", category: .player, level: .debug)
+                    self.enableDeviceSleep()
                 }
                 
                 newPlayer.play()
@@ -241,6 +238,18 @@ struct TVVideoPlayerView: View {
     /// This prevents "almost start" positions from being remembered
     private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
         return position < nearStartThreshold ? 0 : position
+    }
+    
+    /// Enables device sleep capability
+    private func enableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        appLog("tvOS: Device sleep re-enabled", category: .player, level: .debug)
+    }
+    
+    /// Disables device sleep to keep screen active during playback
+    private func disableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        appLog("tvOS: Device sleep disabled for playback", category: .player, level: .debug)
     }
     
     private func handleDismiss() {

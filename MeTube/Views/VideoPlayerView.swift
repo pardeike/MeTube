@@ -167,8 +167,7 @@ struct VideoPlayerView: View {
                 loadVideo()
             }
             // Prevent device from sleeping during playback
-            UIApplication.shared.isIdleTimerDisabled = true
-            appLog("Device sleep disabled for playback", category: .player, level: .debug)
+            disableDeviceSleep()
         }
         .onDisappear {
             appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info, context: [
@@ -179,8 +178,7 @@ struct VideoPlayerView: View {
             ])
             
             // Re-enable device sleep
-            UIApplication.shared.isIdleTimerDisabled = false
-            appLog("Device sleep re-enabled", category: .player, level: .debug)
+            enableDeviceSleep()
             
             // Only cleanup if this is an intentional dismiss (user closed the player)
             // AVPlayerViewController going fullscreen triggers onDisappear but we don't want to cleanup
@@ -251,16 +249,15 @@ struct VideoPlayerView: View {
                     handleSwipeGesture(value: value)
                 }
         )
-        // Video info overlay (when shown)
+        // Overlays for video info and video end dimming
         .overlay {
-            if showingVideoInfo {
-                videoInfoOverlay
-            }
-        }
-        // Video end overlay (dims screen when video finishes)
-        .overlay {
-            if videoEnded {
-                videoEndOverlay
+            Group {
+                if showingVideoInfo {
+                    videoInfoOverlay
+                }
+                if videoEnded {
+                    videoEndOverlay
+                }
             }
         }
     }
@@ -747,8 +744,7 @@ struct VideoPlayerView: View {
                     appLog("Video playback ended", category: .player, level: .info)
                     self.videoEnded = true
                     // Allow device to sleep when video ends
-                    UIApplication.shared.isIdleTimerDisabled = false
-                    appLog("Device sleep enabled (video ended)", category: .player, level: .debug)
+                    self.enableDeviceSleep()
                 }
                 
                 // Auto-play
@@ -795,6 +791,18 @@ struct VideoPlayerView: View {
     /// This prevents "almost start" positions from being remembered
     private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
         return position < VideoPlayerConfig.nearStartThreshold ? 0 : position
+    }
+    
+    /// Enables device sleep capability
+    private func enableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        appLog("Device sleep re-enabled", category: .player, level: .debug)
+    }
+    
+    /// Disables device sleep to keep screen active during playback
+    private func disableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        appLog("Device sleep disabled for playback", category: .player, level: .debug)
     }
     
     /// Dismisses the player view
