@@ -123,6 +123,12 @@ struct ChannelDetailView: View {
                         await feedViewModel.markAsWatched(video)
                     }
                 },
+                onMarkSkipped: {
+                    Task {
+                        await feedViewModel.markAsSkipped(video)
+                    }
+                },
+                // No onGoToChannel in ChannelDetailView since we're already on the channel
                 nextVideo: nextVideo,
                 previousVideo: previousVideo,
                 onNextVideo: { next in

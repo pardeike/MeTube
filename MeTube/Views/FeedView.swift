@@ -14,6 +14,7 @@ struct FeedView: View {
     @State private var selectedVideo: Video?
     @State private var showingError = false
     @State private var showingQuotaInfo = false
+    @State private var selectedChannelId: String? = nil
     
     var body: some View {
         NavigationView {
@@ -183,6 +184,18 @@ struct FeedView: View {
                             await feedViewModel.markAsWatched(video)
                         }
                     },
+                    onMarkSkipped: {
+                        appLog("VideoPlayerView onMarkSkipped called", category: .ui, level: .info)
+                        Task {
+                            await feedViewModel.markAsSkipped(video)
+                        }
+                    },
+                    onGoToChannel: { channelId in
+                        appLog("VideoPlayerView onGoToChannel called: \(channelId)", category: .ui, level: .info)
+                        selectedVideo = nil
+                        // Navigate to channel - handled via navigation
+                        selectedChannelId = channelId
+                    },
                     nextVideo: nextVideo,
                     previousVideo: previousVideo,
                     onNextVideo: { next in
@@ -197,6 +210,32 @@ struct FeedView: View {
                     totalVideos: feedViewModel.filteredVideos.count
                 )
             }
+            // Navigation to channel when "Go to Channel" is tapped
+            .background(
+                NavigationLink(
+                    destination: channelDestinationView,
+                    tag: selectedChannelId ?? "",
+                    selection: Binding(
+                        get: { selectedChannelId },
+                        set: { selectedChannelId = $0 }
+                    )
+                ) {
+                    EmptyView()
+                }
+                .hidden()
+            )
+            }
+        }
+    }
+    
+    /// Destination view for channel navigation
+    @ViewBuilder
+    private var channelDestinationView: some View {
+        if let channelId = selectedChannelId,
+           let channel = feedViewModel.channels.first(where: { $0.id == channelId }) {
+            ChannelDetailView(channel: channel)
+        } else {
+            Text("Channel not found")
         }
     }
     

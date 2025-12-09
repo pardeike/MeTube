@@ -65,6 +65,8 @@ struct VideoPlayerView: View {
     let video: Video
     let onDismiss: () -> Void
     let onMarkWatched: () -> Void
+    var onMarkSkipped: (() -> Void)? = nil
+    var onGoToChannel: ((String) -> Void)? = nil
     var nextVideo: Video? = nil
     var previousVideo: Video? = nil
     var onNextVideo: ((Video) -> Void)? = nil
@@ -106,6 +108,8 @@ struct VideoPlayerView: View {
         video: Video,
         onDismiss: @escaping () -> Void,
         onMarkWatched: @escaping () -> Void,
+        onMarkSkipped: (() -> Void)? = nil,
+        onGoToChannel: ((String) -> Void)? = nil,
         nextVideo: Video? = nil,
         previousVideo: Video? = nil,
         onNextVideo: ((Video) -> Void)? = nil,
@@ -116,6 +120,8 @@ struct VideoPlayerView: View {
         self.video = video
         self.onDismiss = onDismiss
         self.onMarkWatched = onMarkWatched
+        self.onMarkSkipped = onMarkSkipped
+        self.onGoToChannel = onGoToChannel
         self.nextVideo = nextVideo
         self.previousVideo = previousVideo
         self.onNextVideo = onNextVideo
@@ -311,7 +317,7 @@ struct VideoPlayerView: View {
             playbackProgressBarView
             navigationButtonsView
             positionIndicatorView
-            markWatchedButtonView
+            actionButtonsView
             
             // Info button (portrait only)
             Button(action: {
@@ -627,24 +633,50 @@ struct VideoPlayerView: View {
         }
     }
     
-    /// Mark as watched button
+    /// Action buttons row (minimalistic white text buttons)
     @ViewBuilder
-    private var markWatchedButtonView: some View {
-        Button(action: {
-            markWatchedAndAdvance()
-        }) {
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                Text("Mark as Watched")
+    private var actionButtonsView: some View {
+        HStack(spacing: 24) {
+            // Mark as Watched button
+            Button(action: {
+                markWatchedAndAdvance()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.caption)
+                    Text("Watched")
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(Color.green.opacity(0.8))
-            .cornerRadius(20)
+            
+            // Skip button (marks as skipped and advances)
+            Button(action: {
+                skipVideoAndAdvance()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "forward.fill")
+                        .font(.caption)
+                    Text("Skip")
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
+            }
+            
+            // Go to Channel button
+            Button(action: {
+                goToChannel()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.circle")
+                        .font(.caption)
+                    Text("Channel")
+                }
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
+            }
         }
-        .padding(.bottom, 8)
+        .padding(.vertical, 8)
     }
     
     // MARK: - Bottom Controls
@@ -656,7 +688,7 @@ struct VideoPlayerView: View {
             playbackProgressBarView
             navigationButtonsView
             positionIndicatorView
-            markWatchedButtonView
+            actionButtonsView
         }
         .padding()
         .background(
@@ -853,6 +885,36 @@ struct VideoPlayerView: View {
                 self.onNextVideo?(next)
             }
         }
+    }
+    
+    /// Marks the current video as skipped and advances to the next video if available
+    private func skipVideoAndAdvance() {
+        appLog("skipVideoAndAdvance called", category: .player, level: .info, context: [
+            "currentVideo": video.id,
+            "hasNextVideo": nextVideo != nil
+        ])
+        isIntentionalDismiss = true
+        cleanupPlayer()
+        onMarkSkipped?()
+        if let next = nextVideo {
+            appLog("Skipping to next video: \(next.id)", category: .player, level: .info)
+            showNavigationFeedback(.nextVideo)
+            // Switch to next video with slight delay for feedback
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.onNextVideo?(next)
+            }
+        }
+    }
+    
+    /// Navigate to the channel of the current video
+    private func goToChannel() {
+        appLog("goToChannel called", category: .player, level: .info, context: [
+            "channelId": video.channelId,
+            "channelName": video.channelName
+        ])
+        isIntentionalDismiss = true
+        cleanupPlayer()
+        onGoToChannel?(video.channelId)
     }
     
     /// Handles swipe gestures for player navigation
@@ -1308,6 +1370,8 @@ struct ShareSheet: UIViewControllerRepresentable {
         ),
         onDismiss: {},
         onMarkWatched: {},
+        onMarkSkipped: {},
+        onGoToChannel: { _ in },
         nextVideo: Video(
             id: "next123",
             title: "Next Video",
