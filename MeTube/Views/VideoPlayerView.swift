@@ -76,8 +76,6 @@ struct VideoPlayerView: View {
     /// Total count of videos in the list
     var totalVideos: Int? = nil
     
-    @State private var showingControls = true
-    @State private var controlsTimer: Timer?
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
     @State private var showingVideoInfo = false
@@ -159,9 +157,8 @@ struct VideoPlayerView: View {
                 "useDirectPlayer": PlayerConfig.useDirectPlayer,
                 "isPortrait": isPortrait
             ])
-            // In portrait mode, controls are always visible (no timer needed)
-            // In landscape mode, start the auto-hide timer
-            resetControlsTimer()
+            // Controls are always visible in portrait mode
+            // In landscape mode, controls are removed for immersive viewing
             // Only load video for direct player; SDK player handles its own loading
             if PlayerConfig.useDirectPlayer {
                 loadVideo()
@@ -180,7 +177,6 @@ struct VideoPlayerView: View {
             if isIntentionalDismiss {
                 appLog("Intentional dismiss - cleaning up player", category: .player, level: .info)
                 checkAndMarkWatchedIfNeeded()
-                controlsTimer?.invalidate()
                 cleanupPlayer()
             } else {
                 appLog("Not intentional dismiss (likely fullscreen transition) - keeping player alive", category: .player, level: .debug)
@@ -387,7 +383,7 @@ struct VideoPlayerView: View {
                 videoInfoOverlay
             }
         }
-        // Tap gesture removed in landscape mode - overlay controls are hidden
+        // Tap gesture not needed in landscape mode - no overlay controls to toggle
         .gesture(
             DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
                 .onEnded { value in
@@ -983,18 +979,6 @@ struct VideoPlayerView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             withAnimation(.easeOut(duration: 0.2)) {
                 self.navigationFeedback = nil
-            }
-        }
-    }
-    
-    private func resetControlsTimer() {
-        controlsTimer?.invalidate()
-        // Only auto-hide controls in landscape mode; portrait mode has always-visible controls
-        if showingControls && !isPortrait {
-            controlsTimer = Timer.scheduledTimer(withTimeInterval: VideoPlayerConfig.controlsAutoHideDelay, repeats: false) { _ in
-                withAnimation {
-                    showingControls = false
-                }
             }
         }
     }
