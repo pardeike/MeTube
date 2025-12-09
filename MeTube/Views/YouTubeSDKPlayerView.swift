@@ -32,7 +32,7 @@ struct YouTubeSDKPlayerView: View {
             autoPlay: autoPlay,
             isReady: $isReady
         )
-        .edgesIgnoringSafeArea(.all)
+        .ignoresSafeArea(.all)
     }
 }
 
