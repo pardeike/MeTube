@@ -59,6 +59,9 @@ private enum VideoPlayerConfig {
     
     /// Animation duration for navigation transitions
     static let navigationAnimationDuration: Double = 0.3
+    
+    /// Interval in seconds between playback position saves
+    static let positionSaveInterval: TimeInterval = 5.0
 }
 
 struct VideoPlayerView: View {
@@ -688,21 +691,23 @@ struct VideoPlayerView: View {
                 // Seek to saved position if available
                 if savedPosition > 0 && !hasResumedPosition {
                     let seekTime = CMTime(seconds: savedPosition, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                    newPlayer.seek(to: seekTime) { [self] finished in
+                    newPlayer.seek(to: seekTime) { [weak self] finished in
+                        guard let self = self else { return }
                         if finished {
-                            appLog("Resumed playback from saved position: \(savedPosition)s", category: .player, level: .success)
-                            hasResumedPosition = true
+                            appLog("Resumed playback from saved position: \(self.savedPosition)s", category: .player, level: .success)
+                            self.hasResumedPosition = true
                         }
                     }
                 }
                 
                 // Set up periodic time observer to track and save playback position
                 let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [self] time in
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+                    guard let self = self else { return }
                     self.currentPlaybackTime = time.seconds
                     
-                    // Save position every 5 seconds to avoid excessive writes
-                    if abs(time.seconds - self.lastSaveTime) >= 5.0 {
+                    // Save position periodically to avoid excessive writes
+                    if abs(time.seconds - self.lastSaveTime) >= VideoPlayerConfig.positionSaveInterval {
                         self.lastSaveTime = time.seconds
                         self.onSavePosition?(time.seconds)
                     }
