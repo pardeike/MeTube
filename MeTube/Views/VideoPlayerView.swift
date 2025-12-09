@@ -60,6 +60,8 @@ struct VideoPlayerView: View {
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
     @State private var showingVideoInfo = false
+    @State private var currentPlaybackTime: TimeInterval = 0
+    @State private var timeObserverToken: Any?
     @State private var sdkPlayerReady = false
     
     /// Shared stream extractor instance (only used for direct player)
@@ -128,45 +130,71 @@ struct VideoPlayerView: View {
                 
                 // Overlay Controls
                 VStack {
-                    // Top Bar
+                    // Top Bar with controls and info
                     if showingControls {
-                        HStack {
-                            Button(action: {
-                                appLog("Dismiss button tapped", category: .player, level: .info)
-                                cleanupPlayer()
-                                onDismiss()
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
+                        VStack(spacing: 0) {
+                            // Control buttons row
+                            HStack {
+                                Button(action: {
+                                    appLog("Dismiss button tapped", category: .player, level: .info)
+                                    dismissPlayerView()
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Circle())
+                                }
+                                
+                                Spacer()
+                                
+                                // Share Button for YouTube URL
+                                SharePlayButton(videoId: video.id)
+                                    .frame(width: 44, height: 44)
+                                
+                                // AirPlay Button
+                                AirPlayButton()
+                                    .frame(width: 44, height: 44)
+                                
+                                Button(action: {
+                                    appLog("Mark watched button tapped", category: .player, level: .info)
+                                    markWatchedAndAdvance()
+                                }) {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Circle())
+                                }
                             }
+                            .padding()
                             
-                            Spacer()
-                            
-                            // Share Button for YouTube URL
-                            SharePlayButton(videoId: video.id)
-                                .frame(width: 44, height: 44)
-                            
-                            // AirPlay Button
-                            AirPlayButton()
-                                .frame(width: 44, height: 44)
-                            
-                            Button(action: {
-                                appLog("Mark watched button tapped", category: .player, level: .info)
-                                markWatchedAndAdvance()
-                            }) {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.title2)
+                            // Video Info Bar (moved from bottom)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(video.title)
+                                    .font(.headline)
                                     .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
+                                    .lineLimit(2)
+                                
+                                Text(video.channelName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.8))
+                                
+                                HStack {
+                                    Text(video.durationString)
+                                    Text("•")
+                                    Text(video.relativePublishDate)
+                                    
+                                    Spacer()
+                                }
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.6))
                             }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding()
                         .background(
                             LinearGradient(
                                 colors: [Color.black.opacity(0.7), Color.clear],
@@ -177,58 +205,83 @@ struct VideoPlayerView: View {
                     }
                     
                     Spacer()
-                    
-                    // Bottom Info Bar
-                    if showingControls {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(video.title)
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .lineLimit(2)
-                            
-                            Text(video.channelName)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            HStack {
-                                Text(video.durationString)
-                                Text("•")
-                                Text(video.relativePublishDate)
-                                
-                                Spacer()
-                            }
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.clear, Color.black.opacity(0.7)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                    }
                 }
                 
-                // Video info sheet overlay
+                // Video info view (simple overlay when shown)
                 if showingVideoInfo {
-                    VideoInfoSheet(video: video, onDismiss: {
-                        withAnimation {
-                            showingVideoInfo = false
+                    GeometryReader { geometry in
+                        VStack(spacing: 0) {
+                            // Dismiss button area
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    showingVideoInfo = false
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.white.opacity(0.8))
+                                        .padding()
+                                }
+                            }
+                            
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    // Title
+                                    Text(video.title)
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                    
+                                    // Channel info
+                                    Text(video.channelName)
+                                        .font(.headline)
+                                        .foregroundColor(.white.opacity(0.9))
+                                    
+                                    // Metadata
+                                    HStack(spacing: 12) {
+                                        Label(video.durationString, systemImage: "clock")
+                                        Label(video.relativePublishDate, systemImage: "calendar")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                    
+                                    // Description
+                                    if let description = video.description, !description.isEmpty {
+                                        Divider()
+                                            .background(Color.white.opacity(0.3))
+                                        
+                                        Text("Description")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        Text(description)
+                                            .font(.body)
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+                                }
+                                .padding()
+                            }
                         }
-                    })
-                    .transition(.move(edge: .bottom))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.95))
+                    }
                 }
             }
-            .contentShape(Rectangle())
             .onTapGesture {
-                appLog("Player view tapped - toggling controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls.toggle()
+                // Only toggle controls if not showing video info and not tapping on controls
+                if !showingVideoInfo && !showingControls {
+                    appLog("Player view tapped - showing controls", category: .player, level: .debug)
+                    withAnimation {
+                        showingControls = true
+                    }
+                    resetControlsTimer()
+                } else if !showingVideoInfo && showingControls {
+                    // Tapping when controls are visible hides them
+                    appLog("Player view tapped - hiding controls", category: .player, level: .debug)
+                    withAnimation {
+                        showingControls = false
+                    }
                 }
-                resetControlsTimer()
             }
             .gesture(
                 DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
@@ -248,7 +301,14 @@ struct VideoPlayerView: View {
                 }
             }
             .onDisappear {
-                appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info)
+                appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
+                    "videoId": video.id,
+                    "currentPlaybackTime": currentPlaybackTime,
+                    "duration": video.duration
+                ])
+                // Always check if video should be marked as watched when view disappears
+                // This handles both explicit dismiss and system gesture dismiss
+                checkAndMarkWatchedIfNeeded()
                 controlsTimer?.invalidate()
                 cleanupPlayer()
             }
@@ -316,6 +376,7 @@ struct VideoPlayerView: View {
     private func loadVideo() {
         appLog("loadVideo() called for video: \(video.id)", category: .player, level: .info)
         loadingState = .extracting
+        currentPlaybackTime = 0 // Reset playback time for new video
         appLog("Loading state set to: extracting", category: .player, level: .debug)
         
         Task { @MainActor in
@@ -353,6 +414,13 @@ struct VideoPlayerView: View {
                 loadingState = .ready
                 appLog("Loading state set to: ready", category: .player, level: .debug)
                 
+                // Set up periodic time observer to track playback position
+                let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
+                    self.currentPlaybackTime = time.seconds
+                }
+                appLog("Time observer set up", category: .player, level: .debug)
+                
                 // Auto-play
                 newPlayer.play()
                 appLog("Video playback started", category: .player, level: .success)
@@ -369,14 +437,49 @@ struct VideoPlayerView: View {
     
     /// Clean up player resources
     private func cleanupPlayer() {
-        // Always cleanup AVPlayer resources if they exist
-        if let player = player {
-            player.pause()
-            player.replaceCurrentItem(with: nil)
-            self.player = nil
-            appLog("Direct player cleaned up", category: .player, level: .debug)
+        // Remove time observer
+        if let token = timeObserverToken {
+            player?.removeTimeObserver(token)
+            timeObserverToken = nil
         }
-        // SDK player cleanup is handled by WKWebView's lifecycle automatically
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+        appLog("Player cleaned up", category: .player, level: .debug)
+    }
+    
+    /// Dismisses the player view
+    private func dismissPlayerView() {
+        appLog("dismissPlayerView() called explicitly", category: .player, level: .info, context: [
+            "videoId": video.id
+        ])
+        // Don't check auto-watch here - it's handled in onDisappear
+        // This ensures auto-watch happens regardless of dismiss method
+        onDismiss()
+    }
+    
+    /// Checks if video should be marked as watched based on playback position
+    /// Marks video as watched if playback position is over 2/3 of the video duration
+    private func checkAndMarkWatchedIfNeeded() {
+        let threshold = video.duration * 2.0 / 3.0
+        if currentPlaybackTime >= threshold {
+            appLog("Video watched threshold reached (\(currentPlaybackTime)s / \(video.duration)s)", 
+                   category: .player, level: .info, context: [
+                "videoId": video.id,
+                "currentTime": currentPlaybackTime,
+                "duration": video.duration,
+                "threshold": threshold
+            ])
+            onMarkWatched()
+        } else {
+            appLog("Video not watched enough (\(currentPlaybackTime)s / \(video.duration)s)", 
+                   category: .player, level: .debug, context: [
+                "videoId": video.id,
+                "currentTime": currentPlaybackTime,
+                "duration": video.duration,
+                "threshold": threshold
+            ])
+        }
     }
     
     /// Marks the current video as watched and advances to the next video if available
@@ -400,7 +503,7 @@ struct VideoPlayerView: View {
         
         // Determine if swipe is more horizontal or vertical
         if abs(horizontalAmount) > abs(verticalAmount) {
-            // Horizontal swipe
+            // Horizontal swipe - switch videos in-place
             if horizontalAmount > 0 {
                 // Swipe right - previous video
                 handlePreviousVideo()
@@ -413,36 +516,40 @@ struct VideoPlayerView: View {
             if verticalAmount < 0 {
                 // Swipe up - dismiss player
                 appLog("Swipe up detected - dismissing player", category: .player, level: .info)
-                cleanupPlayer()
-                onDismiss()
-            } else {
-                // Swipe down - show video info
-                appLog("Swipe down detected - showing video info", category: .player, level: .info)
-                withAnimation {
-                    showingVideoInfo = true
+                dismissPlayerView()
+            } else if verticalAmount > 0 {
+                // Swipe down - show info sheet
+                appLog("Swipe down detected - showing info sheet", category: .player, level: .info)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    // Calculate sheet height based on screen size
+                    // Using a rough estimate since we don't have geometry here
+                    infoSheetOffset = -UIScreen.main.bounds.height * 0.5
                 }
             }
         }
     }
     
-    /// Handle next video navigation
+    /// Handle next video navigation - switch in-place
     private func handleNextVideo() {
-        guard nextVideo != nil else {
+        guard let next = nextVideo else {
             appLog("No next video available", category: .player, level: .debug)
             return
         }
         appLog("Swipe left detected - advancing to next video", category: .player, level: .info)
-        markWatchedAndAdvance()
+        // Auto-watch check will happen in onDisappear when view is recreated
+        // Switch to next video in-place
+        onNextVideo?(next)
     }
     
-    /// Handle previous video navigation
+    /// Handle previous video navigation - switch in-place
     private func handlePreviousVideo() {
         guard let previous = previousVideo else {
             appLog("No previous video available", category: .player, level: .debug)
             return
         }
         appLog("Swipe right detected - going to previous video", category: .player, level: .info)
-        cleanupPlayer()
+        // Auto-watch check will happen in onDisappear when view is recreated
+        // Switch to previous video in-place
         onPreviousVideo?(previous)
     }
     
@@ -462,10 +569,13 @@ struct VideoPlayerView: View {
 
 struct VideoInfoSheet: View {
     let video: Video
-    let onDismiss: () -> Void
+    @Binding var offset: CGFloat
+    @State private var dragOffset: CGFloat = 0
     
     var body: some View {
         GeometryReader { geometry in
+            let sheetHeight = geometry.size.height * 0.5
+            
             VStack(spacing: 0) {
                 // Drag handle
                 RoundedRectangle(cornerRadius: 2.5)
@@ -517,18 +627,42 @@ struct VideoInfoSheet: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: geometry.size.height * 0.5)
+            .frame(height: sheetHeight)
             .background(Color.black.opacity(0.9))
             .cornerRadius(20, corners: [.topLeft, .topRight])
-            .onTapGesture {
-                // Prevent dismissing when tapping content
-            }
+            .offset(y: dragOffset) // Apply drag offset during gesture
             .gesture(
                 DragGesture()
-                    .onEnded { value in
-                        if value.translation.height > VideoPlayerConfig.minimumDragToDismiss {
-                            onDismiss()
+                    .onChanged { value in
+                        // Allow dragging down (positive) to hide, and dragging up (negative) to show
+                        let newOffset = value.translation.height
+                        // Clamp between fully visible and hidden
+                        // When offset is 0 (hidden), can only drag up (negative)
+                        // When offset is -sheetHeight (visible), can drag down (positive) to hide
+                        if offset == 0 {
+                            // Sheet is hidden, allow dragging up to show
+                            dragOffset = min(0, newOffset)
+                        } else {
+                            // Sheet is visible or partially visible
+                            let targetOffset = offset + newOffset
+                            dragOffset = max(offset, min(0, targetOffset)) - offset
                         }
+                    }
+                    .onEnded { value in
+                        let velocity = value.predictedEndTranslation.height - value.translation.height
+                        let finalOffset = offset + value.translation.height
+                        
+                        // Determine if sheet should snap to visible or hidden
+                        let shouldShow = finalOffset < -sheetHeight / 3 || velocity < -100
+                        
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            if shouldShow {
+                                offset = -sheetHeight
+                            } else {
+                                offset = 0
+                            }
+                        }
+                        dragOffset = 0
                     }
             )
         }

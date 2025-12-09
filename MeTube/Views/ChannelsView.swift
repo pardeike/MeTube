@@ -8,19 +8,36 @@
 import SwiftUI
 import SwiftData
 
+/// Filter options for channel list
+enum ChannelFilter: String, CaseIterable {
+    case all = "All Channels"
+    case withUnseenVideos = "With Unseen Videos"
+}
+
 struct ChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var searchText: String = ""
+    @State private var selectedFilter: ChannelFilter = .all
     
     var filteredChannels: [Channel] {
-        if searchText.isEmpty {
-            return feedViewModel.channels
-        } else {
-            return feedViewModel.channels.filter {
+        var channels = feedViewModel.channels
+        
+        // Apply filter
+        if selectedFilter == .withUnseenVideos {
+            channels = channels.filter { channel in
+                feedViewModel.unwatchedCount(for: channel.id) > 0
+            }
+        }
+        
+        // Apply search
+        if !searchText.isEmpty {
+            channels = channels.filter {
                 $0.name.lowercased().contains(searchText.lowercased())
             }
         }
+        
+        return channels
     }
     
     var body: some View {
@@ -36,6 +53,35 @@ struct ChannelsView: View {
             }
             .navigationTitle("Channels")
             .searchable(text: $searchText, prompt: "Search channels")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Section("Filter") {
+                            Button(action: {
+                                selectedFilter = .all
+                            }) {
+                                if selectedFilter == .all {
+                                    Label("All Channels", systemImage: "checkmark")
+                                } else {
+                                    Text("All Channels")
+                                }
+                            }
+                            
+                            Button(action: {
+                                selectedFilter = .withUnseenVideos
+                            }) {
+                                if selectedFilter == .withUnseenVideos {
+                                    Label("With Unseen Videos", systemImage: "checkmark")
+                                } else {
+                                    Text("With Unseen Videos")
+                                }
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
+                }
+            }
             .refreshable {
                 if let token = await authManager.getAccessToken() {
                     await feedViewModel.refreshFeed(accessToken: token)
