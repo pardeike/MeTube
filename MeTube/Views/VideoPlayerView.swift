@@ -521,9 +521,7 @@ struct VideoPlayerView: View {
                 // Swipe down - show info sheet
                 appLog("Swipe down detected - showing info sheet", category: .player, level: .info)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    // Calculate sheet height based on screen size
-                    // Using a rough estimate since we don't have geometry here
-                    infoSheetOffset = -UIScreen.main.bounds.height * 0.5
+                    showingVideoInfo = true
                 }
             }
         }
@@ -739,9 +737,14 @@ struct SharePlayButton: View {
     let videoId: String
     @State private var showingShareSheet = false
     
+    /// Fallback URL for YouTube (guaranteed to be valid at compile time)
+    private static let fallbackURL = URL(string: "https://www.youtube.com")!
+    
     /// YouTube watch URL for sharing
     private var youtubeURL: URL {
-        URL(string: "https://www.youtube.com/watch?v=\(videoId)")!
+        // Use addingPercentEncoding to handle any special characters in videoId
+        let encodedVideoId = videoId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? videoId
+        return URL(string: "https://www.youtube.com/watch?v=\(encodedVideoId)") ?? Self.fallbackURL
     }
     
     var body: some View {

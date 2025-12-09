@@ -230,30 +230,28 @@ class FeedViewModel: ObservableObject {
     
     /// Sync data if needed (non-blocking check)
     func syncIfNeeded() async {
-        do {
-            // Check if hub sync is needed
-            if hubSyncManager.shouldSync() {
-                appLog("Hub sync needed, starting in background", category: .feed, level: .info)
-                Task {
-                    do {
-                        _ = try await hubSyncManager.syncIfNeeded()
-                        await refreshFromDatabase()
-                    } catch {
-                        appLog("Background hub sync failed: \(error)", category: .feed, level: .error)
-                    }
+        // Check if hub sync is needed
+        if hubSyncManager.shouldSync() {
+            appLog("Hub sync needed, starting in background", category: .feed, level: .info)
+            Task {
+                do {
+                    _ = try await hubSyncManager.syncIfNeeded()
+                    await refreshFromDatabase()
+                } catch {
+                    appLog("Background hub sync failed: \(error)", category: .feed, level: .error)
                 }
             }
-            
-            // Check if status sync is needed
-            if statusSyncManager.shouldSync() {
-                appLog("Status sync needed, starting in background", category: .feed, level: .info)
-                Task {
-                    do {
-                        _ = try await statusSyncManager.syncIfNeeded()
-                        await refreshFromDatabase()
-                    } catch {
-                        appLog("Background status sync failed: \(error)", category: .feed, level: .error)
-                    }
+        }
+        
+        // Check if status sync is needed
+        if statusSyncManager.shouldSync() {
+            appLog("Status sync needed, starting in background", category: .feed, level: .info)
+            Task {
+                do {
+                    _ = try await statusSyncManager.syncIfNeeded()
+                    await refreshFromDatabase()
+                } catch {
+                    appLog("Background status sync failed: \(error)", category: .feed, level: .error)
                 }
             }
         }
