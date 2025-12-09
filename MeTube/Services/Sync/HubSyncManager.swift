@@ -69,14 +69,14 @@ class HubSyncManager {
     init(
         videoRepository: VideoRepository,
         channelRepository: ChannelRepository,
-        hubServerService: HubServerService = HubServerService(),
-        youtubeService: YouTubeService = YouTubeService(),
+        //hubServerService: HubServerService = HubServerService(),
+        //youtubeService: YouTubeService = YouTubeService(),
         userId: String
     ) {
         self.videoRepository = videoRepository
         self.channelRepository = channelRepository
-        self.hubServerService = hubServerService
-        self.youtubeService = youtubeService
+        self.hubServerService = HubServerService()
+        self.youtubeService = YouTubeService()
         self.userId = userId
     }
     

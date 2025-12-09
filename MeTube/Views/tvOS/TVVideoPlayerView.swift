@@ -233,6 +233,7 @@ struct TVNativeVideoPlayer: UIViewControllerRepresentable {
             self.onDismiss = onDismiss
         }
         
+        /*
         func playerViewController(_ playerViewController: AVPlayerViewController, willBeginFullScreenPresentationWithAnimationCoordinator coordinator: any UIViewControllerTransitionCoordinator) {
             // Full screen presentation starting
         }
@@ -243,6 +244,7 @@ struct TVNativeVideoPlayer: UIViewControllerRepresentable {
                 self.onDismiss()
             }
         }
+        */
     }
 }
 

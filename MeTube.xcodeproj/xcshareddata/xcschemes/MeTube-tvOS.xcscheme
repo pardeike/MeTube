@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "500000001"
-               BuildableName = "MeTube.app"
-               BlueprintName = "MeTube"
+               BlueprintIdentifier = "E1EF0D322EE8C7E400762E56"
+               BuildableName = "MeTube-tvOS.app"
+               BlueprintName = "MeTube-tvOS"
                ReferencedContainer = "container:MeTube.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -39,15 +39,14 @@
       ignoresPersistentStateOnLaunch = "NO"
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
-      enableGPUValidationMode = "1"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "500000001"
-            BuildableName = "MeTube.app"
-            BlueprintName = "MeTube"
+            BlueprintIdentifier = "E1EF0D322EE8C7E400762E56"
+            BuildableName = "MeTube-tvOS.app"
+            BlueprintName = "MeTube-tvOS"
             ReferencedContainer = "container:MeTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -62,9 +61,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "500000001"
-            BuildableName = "MeTube.app"
-            BlueprintName = "MeTube"
+            BlueprintIdentifier = "E1EF0D322EE8C7E400762E56"
+            BuildableName = "MeTube-tvOS.app"
+            BlueprintName = "MeTube-tvOS"
             ReferencedContainer = "container:MeTube.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

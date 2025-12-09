@@ -675,8 +675,7 @@ struct VideoPlayerView: View {
                 // Seek to saved position if available
                 if savedPosition > 0 && !hasResumedPosition {
                     let seekTime = CMTime(seconds: savedPosition, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                    newPlayer.seek(to: seekTime) { [weak self] finished in
-                        guard let self = self else { return }
+                    newPlayer.seek(to: seekTime) { finished in
                         if finished {
                             appLog("Resumed playback from saved position: \(self.savedPosition)s", category: .player, level: .success)
                             self.hasResumedPosition = true
@@ -686,8 +685,7 @@ struct VideoPlayerView: View {
                 
                 // Set up periodic time observer to track and save playback position
                 let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-                    guard let self = self else { return }
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
                     self.currentPlaybackTime = time.seconds
                     
                     // Save position periodically to avoid excessive writes

@@ -359,10 +359,10 @@ final class HubServerService: Sendable {
     ///   - maxRetries: Maximum number of retry attempts (defaults to HubConfig.maxRetries)
     ///   - operation: The async operation to retry
     func fetchWithRetry<T>(
-        maxRetries: Int = HubConfig.maxRetries,
         operation: @escaping () async throws -> T
     ) async throws -> T {
         var lastError: Error?
+        let maxRetries = HubConfig.maxRetries
         
         for attempt in 0..<maxRetries {
             do {

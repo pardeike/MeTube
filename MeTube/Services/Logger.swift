@@ -18,6 +18,7 @@ enum LogConfig {
     
     /// Log categories that can be individually toggled
     struct Categories {
+        static var auth: Bool = true
         static var feed: Bool = true
         static var cloudKit: Bool = true
         static var youtube: Bool = true
@@ -38,6 +39,7 @@ enum LogLevel: String {
 
 /// Log categories for filtering
 enum LogCategory: String {
+    case auth = "AUTH"
     case feed = "FEED"
     case cloudKit = "CLOUDKIT"
     case youtube = "YOUTUBE"
@@ -47,6 +49,7 @@ enum LogCategory: String {
     
     var isEnabled: Bool {
         switch self {
+        case .auth: return LogConfig.Categories.auth
         case .feed: return LogConfig.Categories.feed
         case .cloudKit: return LogConfig.Categories.cloudKit
         case .youtube: return LogConfig.Categories.youtube

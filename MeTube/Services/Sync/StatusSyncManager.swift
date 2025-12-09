@@ -77,11 +77,11 @@ class StatusSyncManager {
     
     init(
         statusRepository: StatusRepository,
-        cloudKitService: CloudKitService = CloudKitService(),
+        //cloudKitService: CloudKitService = CloudKitService(),
         userId: String
     ) {
         self.statusRepository = statusRepository
-        self.cloudKitService = cloudKitService
+        self.cloudKitService = CloudKitService()
         self.userId = userId
         self.container = CKContainer(identifier: StatusSyncConfig.containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
