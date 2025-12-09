@@ -170,9 +170,13 @@ class HubSyncManager {
         // 3. Trigger reconciliation if allowed (checks for new videos on server)
         if canReconcile() {
             do {
-                let newCount = try await hubServerService.reconcileChannels(userId: userId)
+                let reconcileCount = try await hubServerService.reconcileChannels(userId: userId)
                 lastReconcile = Date()
-                appLog("Reconciliation found \(newCount) new videos", category: .feed, level: .success)
+                if reconcileCount > 0 {
+                    appLog("Reconciliation found \(reconcileCount) new videos on server", category: .feed, level: .success)
+                } else {
+                    appLog("Reconciliation completed, no new videos found", category: .feed, level: .info)
+                }
             } catch {
                 // Log but don't fail the sync if reconciliation fails
                 appLog("Reconciliation failed (non-fatal): \(error)", category: .feed, level: .warning)

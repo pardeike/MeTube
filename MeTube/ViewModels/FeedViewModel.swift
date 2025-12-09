@@ -273,15 +273,16 @@ class FeedViewModel: ObservableObject {
         appLog("Performing foreground reconciliation", category: .feed, level: .info)
         
         do {
-            if let newCount = try await hubSyncManager.reconcileIfAllowed() {
+            if let reconcileCount = try await hubSyncManager.reconcileIfAllowed() {
                 lastReconcileTime = Date()
-                appLog("Foreground reconciliation found \(newCount) new videos", category: .feed, level: .success)
+                appLog("Foreground reconciliation found \(reconcileCount) new videos", category: .feed, level: .success)
                 
                 // If new videos were found, sync to get them
-                if newCount > 0 {
-                    _ = try await hubSyncManager.syncIfNeeded()
+                if reconcileCount > 0 {
+                    let syncCount = try await hubSyncManager.syncIfNeeded()
                     await refreshFromDatabase()
-                    newVideosCount = newCount
+                    // Use the sync count as it represents actual new videos added to local DB
+                    newVideosCount = syncCount
                 }
             }
         } catch {
@@ -303,9 +304,9 @@ class FeedViewModel: ObservableObject {
         
         do {
             // Perform sync (includes reconciliation, channel registration and feed fetch)
+            // Note: Reconciliation inside performSync respects its own rate limiting
             let newCount = try await hubSyncManager.performSync(accessToken: accessToken)
             newVideosCount = newCount
-            lastReconcileTime = Date()
             isReconciling = false
             
             // Perform status sync
