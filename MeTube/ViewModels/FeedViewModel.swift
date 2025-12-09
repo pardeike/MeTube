@@ -157,6 +157,9 @@ class FeedViewModel: ObservableObject {
     private let youtubeService = YouTubeService()
     private weak var authManager: AuthenticationManager?
     
+    /// Flag to prevent concurrent sync manager initialization
+    private var isInitializingSyncManagers = false
+    
     // MARK: - Cache
     
     private var channelCache: [String: ChannelEntity] = [:]
@@ -164,6 +167,11 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Initialization
     
+    /// Initializes FeedViewModel with the given model context.
+    /// - Parameters:
+    ///   - modelContext: The SwiftData model context for database operations
+    ///   - authManager: The authentication manager for cross-device hub user ID.
+    ///                  If nil, must call `setAuthManager()` before any sync operations.
     init(modelContext: ModelContext, authManager: AuthenticationManager? = nil) {
         appLog("FeedViewModel initializing with offline-first architecture", category: .feed, level: .info)
         
@@ -181,26 +189,35 @@ class FeedViewModel: ObservableObject {
         appLog("FeedViewModel initialized successfully", category: .feed, level: .success)
     }
     
-    /// Sets the authentication manager reference (needed for cross-device hub user ID)
-    /// This should be called early in the app lifecycle if not passed in init
+    /// Sets the authentication manager reference (needed for cross-device hub user ID).
+    /// This must be called before any sync operations if not passed in init.
     func setAuthManager(_ authManager: AuthenticationManager) {
         self.authManager = authManager
     }
     
-    /// Initializes the sync managers with the hub user ID from AuthenticationManager
-    /// This must be called before any sync operations
+    /// Initializes the sync managers with the hub user ID from AuthenticationManager.
+    /// This is called automatically before any sync operations.
+    /// Thread-safe: This class is @MainActor so all access is serialized.
     private func initializeSyncManagers() async {
+        // Already initialized - early return
         guard hubSyncManager == nil else { return }
         
-        // Get the hub user ID from AuthenticationManager (cross-device synced via CloudKit)
-        let userId: String
-        if let authManager = authManager {
-            userId = await authManager.getHubUserId()
-        } else {
-            // Fallback: generate a local UUID (shouldn't happen in normal usage)
-            userId = UUID().uuidString
-            appLog("Warning: AuthManager not available, using local UUID for hub user ID", category: .feed, level: .warning)
+        // Prevent concurrent initialization (handles re-entry after await suspension)
+        guard !isInitializingSyncManagers else { return }
+        isInitializingSyncManagers = true
+        defer { isInitializingSyncManagers = false }
+        
+        // Double-check after acquiring the flag
+        guard hubSyncManager == nil else { return }
+        
+        // Require AuthenticationManager for cross-device hub user ID
+        guard let authManager = authManager else {
+            appLog("Error: AuthManager not available. Call setAuthManager() before sync operations.", category: .feed, level: .error)
+            return
         }
+        
+        // Get the hub user ID from AuthenticationManager (cross-device synced via CloudKit)
+        let userId = await authManager.getHubUserId()
         
         self.hubSyncManager = HubSyncManager(
             videoRepository: videoRepository,
