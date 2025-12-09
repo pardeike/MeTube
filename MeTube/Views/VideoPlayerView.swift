@@ -737,11 +737,14 @@ struct SharePlayButton: View {
     let videoId: String
     @State private var showingShareSheet = false
     
+    /// Fallback URL for YouTube (guaranteed to be valid at compile time)
+    private static let fallbackURL = URL(string: "https://www.youtube.com")!
+    
     /// YouTube watch URL for sharing
     private var youtubeURL: URL {
         // Use addingPercentEncoding to handle any special characters in videoId
         let encodedVideoId = videoId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? videoId
-        return URL(string: "https://www.youtube.com/watch?v=\(encodedVideoId)") ?? URL(string: "https://www.youtube.com")!
+        return URL(string: "https://www.youtube.com/watch?v=\(encodedVideoId)") ?? Self.fallbackURL
     }
     
     var body: some View {

@@ -322,10 +322,7 @@ class StatusSyncManager {
             }
             
             // Check for conflict with local changes
-            // Use try to properly propagate fetch errors
-            let localStatus = try statusRepository.fetchStatus(forVideoId: videoId)
-            
-            if let localStatus = localStatus {
+            if let localStatus = try statusRepository.fetchStatus(forVideoId: videoId) {
                 // Use most recent lastModified to resolve conflict
                 if lastModified > localStatus.lastModified {
                     // Remote is newer, update local
