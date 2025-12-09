@@ -14,9 +14,10 @@ struct FeedView: View {
     @State private var selectedVideo: Video?
     @State private var showingError = false
     @State private var showingQuotaInfo = false
+    @State private var selectedChannelId: String? = nil
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Group {
                     if feedViewModel.loadingState.isLoading && feedViewModel.allVideos.isEmpty {
@@ -170,6 +171,7 @@ struct FeedView: View {
                 let _ = appLog("fullScreenCover presenting video: \(video.id)", category: .ui, level: .info)
                 let nextVideo = getNextVideo(after: video)
                 let previousVideo = getPreviousVideo(before: video)
+                let videoIndex = getVideoIndex(for: video)
                 VideoPlayerView(
                     video: video,
                     onDismiss: {
@@ -182,6 +184,18 @@ struct FeedView: View {
                             await feedViewModel.markAsWatched(video)
                         }
                     },
+                    onMarkSkipped: {
+                        appLog("VideoPlayerView onMarkSkipped called", category: .ui, level: .info)
+                        Task {
+                            await feedViewModel.markAsSkipped(video)
+                        }
+                    },
+                    onGoToChannel: { channelId in
+                        appLog("VideoPlayerView onGoToChannel called: \(channelId)", category: .ui, level: .info)
+                        selectedVideo = nil
+                        // Navigate to channel - handled via navigation
+                        selectedChannelId = channelId
+                    },
                     nextVideo: nextVideo,
                     previousVideo: previousVideo,
                     onNextVideo: { next in
@@ -191,10 +205,39 @@ struct FeedView: View {
                     onPreviousVideo: { previous in
                         appLog("VideoPlayerView onPreviousVideo called: \(previous.id)", category: .ui, level: .info)
                         selectedVideo = previous
-                    }
+                    },
+                    currentIndex: videoIndex,
+                    totalVideos: feedViewModel.filteredVideos.count
                 )
             }
+            // Navigation to channel when "Go to Channel" is tapped
+            .navigationDestination(isPresented: Binding(
+                get: { selectedChannelId != nil },
+                set: { if !$0 { selectedChannelId = nil } }
+            )) {
+                channelDestinationView
+            }
         }
+    }
+    
+    /// Destination view for channel navigation
+    @ViewBuilder
+    private var channelDestinationView: some View {
+        if let channelId = selectedChannelId,
+           let channel = feedViewModel.channels.first(where: { $0.id == channelId }) {
+            ChannelDetailView(channel: channel)
+        } else {
+            Text("Channel not found")
+        }
+    }
+    
+    /// Gets the 1-based index of the video in the filtered list
+    private func getVideoIndex(for video: Video) -> Int? {
+        let videos = feedViewModel.filteredVideos
+        guard let index = videos.firstIndex(where: { $0.id == video.id }) else {
+            return nil
+        }
+        return index + 1 // Convert to 1-based index
     }
     
     /// Gets the next unwatched video after the current one

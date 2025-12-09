@@ -112,6 +112,7 @@ struct ChannelDetailView: View {
         .fullScreenCover(item: $selectedVideo) { video in
             let nextVideo = getNextVideo(after: video)
             let previousVideo = getPreviousVideo(before: video)
+            let videoIndex = getVideoIndex(for: video)
             VideoPlayerView(
                 video: video,
                 onDismiss: {
@@ -122,6 +123,12 @@ struct ChannelDetailView: View {
                         await feedViewModel.markAsWatched(video)
                     }
                 },
+                onMarkSkipped: {
+                    Task {
+                        await feedViewModel.markAsSkipped(video)
+                    }
+                },
+                // No onGoToChannel in ChannelDetailView since we're already on the channel
                 nextVideo: nextVideo,
                 previousVideo: previousVideo,
                 onNextVideo: { next in
@@ -129,9 +136,19 @@ struct ChannelDetailView: View {
                 },
                 onPreviousVideo: { previous in
                     selectedVideo = previous
-                }
+                },
+                currentIndex: videoIndex,
+                totalVideos: channelVideos.count
             )
         }
+    }
+    
+    /// Gets the 1-based index of the video in the channel's video list
+    private func getVideoIndex(for video: Video) -> Int? {
+        guard let index = channelVideos.firstIndex(where: { $0.id == video.id }) else {
+            return nil
+        }
+        return index + 1 // Convert to 1-based index
     }
     
     /// Gets the next video after the current one in this channel
