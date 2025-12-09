@@ -36,6 +36,9 @@ struct TVVideoPlayerView: View {
     /// Interval in seconds between playback position saves
     private let positionSaveInterval: TimeInterval = 5.0
     
+    /// Threshold for saving position as 00:00 (in seconds from beginning)
+    private let nearStartThreshold: TimeInterval = 10.0
+    
     var body: some View {
         ZStack {
             Color.black.edgesIgnoringSafeArea(.all)
@@ -151,7 +154,8 @@ struct TVVideoPlayerView: View {
                     // Save position periodically
                     if abs(time.seconds - self.lastSaveTime) >= self.positionSaveInterval {
                         self.lastSaveTime = time.seconds
-                        self.onSavePosition?(time.seconds)
+                        let normalizedPosition = self.normalizePosition(time.seconds)
+                        self.onSavePosition?(normalizedPosition)
                     }
                 }
                 
@@ -169,8 +173,9 @@ struct TVVideoPlayerView: View {
     
     private func cleanupPlayer() {
         if currentPlaybackTime > 0 {
-            onSavePosition?(currentPlaybackTime)
-            appLog("tvOS: Saved position: \(currentPlaybackTime)s", category: .player, level: .info)
+            let normalizedPosition = normalizePosition(currentPlaybackTime)
+            onSavePosition?(normalizedPosition)
+            appLog("tvOS: Saved position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
         }
         
         if let token = timeObserverToken {
@@ -180,6 +185,12 @@ struct TVVideoPlayerView: View {
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
+    }
+    
+    /// Normalizes playback position: positions less than 10s are saved as 0
+    /// This prevents "almost start" positions from being remembered
+    private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
+        return position < nearStartThreshold ? 0 : position
     }
     
     private func handleDismiss() {

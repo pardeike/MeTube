@@ -9,8 +9,8 @@
 //  Toggle between players using PlayerConfig.useDirectPlayer
 //
 //  Navigation Features (iOS only):
-//  - Swipe up: Dismiss player
-//  - Swipe down: Show video info sheet
+//  - Swipe down: Dismiss player
+//  - Swipe up: Show video info sheet
 //  - Swipe left: Next video
 //  - Swipe right: Previous video
 //  - Tap: Toggle controls visibility
@@ -46,6 +46,9 @@ private enum VideoPlayerConfig {
     
     /// Interval in seconds between playback position saves
     static let positionSaveInterval: TimeInterval = 5.0
+    
+    /// Threshold for saving position as 00:00 (in seconds from beginning)
+    static let nearStartThreshold: TimeInterval = 10.0
 }
 
 struct VideoPlayerView: View {
@@ -691,7 +694,8 @@ struct VideoPlayerView: View {
                     // Save position periodically to avoid excessive writes
                     if abs(time.seconds - self.lastSaveTime) >= VideoPlayerConfig.positionSaveInterval {
                         self.lastSaveTime = time.seconds
-                        self.onSavePosition?(time.seconds)
+                        let normalizedPosition = self.normalizePosition(time.seconds)
+                        self.onSavePosition?(normalizedPosition)
                     }
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
@@ -714,8 +718,9 @@ struct VideoPlayerView: View {
     private func cleanupPlayer() {
         // Save final playback position before cleanup
         if currentPlaybackTime > 0 {
-            onSavePosition?(currentPlaybackTime)
-            appLog("Saved final playback position: \(currentPlaybackTime)s", category: .player, level: .info)
+            let normalizedPosition = normalizePosition(currentPlaybackTime)
+            onSavePosition?(normalizedPosition)
+            appLog("Saved final playback position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
         }
         
         // Remove time observer
@@ -727,6 +732,12 @@ struct VideoPlayerView: View {
         player?.replaceCurrentItem(with: nil)
         player = nil
         appLog("Player cleaned up", category: .player, level: .debug)
+    }
+    
+    /// Normalizes playback position: positions less than 10s are saved as 0
+    /// This prevents "almost start" positions from being remembered
+    private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
+        return position < VideoPlayerConfig.nearStartThreshold ? 0 : position
     }
     
     /// Dismisses the player view
@@ -832,15 +843,15 @@ struct VideoPlayerView: View {
         } else {
             // Vertical swipe
             if verticalAmount < 0 {
-                // Swipe up - dismiss player
-                appLog("Swipe up detected - dismissing player", category: .player, level: .info)
-                dismissPlayerView()
-            } else if verticalAmount > 0 {
-                // Swipe down - show info sheet
-                appLog("Swipe down detected - showing info sheet", category: .player, level: .info)
+                // Swipe up - show info sheet
+                appLog("Swipe up detected - showing info sheet", category: .player, level: .info)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showingVideoInfo = true
                 }
+            } else if verticalAmount > 0 {
+                // Swipe down - dismiss player
+                appLog("Swipe down detected - dismissing player", category: .player, level: .info)
+                dismissPlayerView()
             }
         }
     }
