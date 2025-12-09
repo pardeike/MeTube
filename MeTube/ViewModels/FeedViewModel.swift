@@ -46,6 +46,7 @@ enum LoadingState: Equatable {
     case loadingVideos(channelIndex: Int, totalChannels: Int, channelName: String)
     case loadingStatuses
     case refreshing
+    case reconciling
     case backgroundRefreshing
     
     var description: String {
@@ -60,6 +61,8 @@ enum LoadingState: Equatable {
             return "Syncing watch status..."
         case .refreshing:
             return "Checking for new videos..."
+        case .reconciling:
+            return "Checking for updates..."
         case .backgroundRefreshing:
             return "Updating in background..."
         }
@@ -96,6 +99,8 @@ class FeedViewModel: ObservableObject {
     @Published var quotaInfo: QuotaInfo = QuotaInfo(usedToday: 0, resetDate: Date())
     @Published var lastRefreshDate: Date?
     @Published var newVideosCount: Int = 0
+    @Published var isReconciling: Bool = false
+    @Published var lastReconcileTime: Date?
     
     var isLoading: Bool { loadingState.isLoading }
     
@@ -257,6 +262,34 @@ class FeedViewModel: ObservableObject {
         }
     }
     
+    /// Perform reconciliation when app becomes active (foreground transition)
+    /// This checks for new videos if 15+ minutes have passed since last reconciliation
+    func reconcileOnForeground() async {
+        guard hubSyncManager.canReconcile() else {
+            appLog("Foreground reconciliation skipped: rate limited", category: .feed, level: .debug)
+            return
+        }
+        
+        appLog("Performing foreground reconciliation", category: .feed, level: .info)
+        
+        do {
+            if let newCount = try await hubSyncManager.reconcileIfAllowed() {
+                lastReconcileTime = Date()
+                appLog("Foreground reconciliation found \(newCount) new videos", category: .feed, level: .success)
+                
+                // If new videos were found, sync to get them
+                if newCount > 0 {
+                    _ = try await hubSyncManager.syncIfNeeded()
+                    await refreshFromDatabase()
+                    newVideosCount = newCount
+                }
+            }
+        } catch {
+            appLog("Foreground reconciliation failed: \(error)", category: .feed, level: .error)
+            // Don't show error to user - this is a background operation
+        }
+    }
+    
     // MARK: - Refresh Operations
     
     /// Full refresh from YouTube and hub server
@@ -264,13 +297,16 @@ class FeedViewModel: ObservableObject {
         appLog("Starting full refresh", category: .feed, level: .info)
         
         loadingState = .refreshing
+        isReconciling = true
         error = nil
         newVideosCount = 0
         
         do {
-            // Perform sync (includes channel registration and feed fetch)
+            // Perform sync (includes reconciliation, channel registration and feed fetch)
             let newCount = try await hubSyncManager.performSync(accessToken: accessToken)
             newVideosCount = newCount
+            lastReconcileTime = Date()
+            isReconciling = false
             
             // Perform status sync
             _ = try await statusSyncManager.performSync()
@@ -286,6 +322,7 @@ class FeedViewModel: ObservableObject {
         } catch {
             appLog("Full refresh failed: \(error)", category: .feed, level: .error)
             self.error = error.localizedDescription
+            isReconciling = false
             loadingState = .idle
         }
     }
@@ -295,10 +332,20 @@ class FeedViewModel: ObservableObject {
         appLog("Starting incremental refresh", category: .feed, level: .info)
         
         loadingState = .refreshing
+        isReconciling = true
         error = nil
         
         do {
-            // Perform incremental sync
+            // First, reconcile to check for new videos (if rate limit allows)
+            loadingState = .reconciling
+            if let reconcileCount = try await hubSyncManager.reconcileIfAllowed() {
+                appLog("Reconciliation found \(reconcileCount) new videos", category: .feed, level: .success)
+                lastReconcileTime = Date()
+            }
+            isReconciling = false
+            
+            // Then fetch the updated feed
+            loadingState = .refreshing
             let newCount = try await hubSyncManager.syncIfNeeded()
             newVideosCount = newCount
             
@@ -316,6 +363,7 @@ class FeedViewModel: ObservableObject {
         } catch {
             appLog("Incremental refresh failed: \(error)", category: .feed, level: .error)
             self.error = error.localizedDescription
+            isReconciling = false
             loadingState = .idle
         }
     }
@@ -448,6 +496,12 @@ class FeedViewModel: ObservableObject {
         appLog("Performing background refresh", category: .feed, level: .info)
         
         do {
+            // First, reconcile to check for new videos (if rate limit allows)
+            if let reconcileCount = try await hubSyncManager.reconcileIfAllowed() {
+                appLog("Background reconciliation found \(reconcileCount) new videos", category: .feed, level: .success)
+                lastReconcileTime = Date()
+            }
+            
             // Perform incremental sync
             let newCount = try await hubSyncManager.syncIfNeeded()
             _ = try await statusSyncManager.syncIfNeeded()

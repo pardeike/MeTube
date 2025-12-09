@@ -14,6 +14,9 @@ enum HubSyncConfig {
     /// Minimum interval between syncs (in seconds)
     static let minimumSyncInterval: TimeInterval = 60 * 60 // 1 hour
     
+    /// Minimum interval between reconciliations (in seconds)
+    static let minimumReconcileInterval: TimeInterval = 15 * 60 // 15 minutes
+    
     /// Number of videos to fetch per page (reduced from 200 for better reliability)
     static let pageLimit = 100
     
@@ -25,6 +28,9 @@ enum HubSyncConfig {
     
     /// UserDefaults key for last feed sync timestamp
     static let lastFeedSyncKey = "lastFeedSync"
+    
+    /// UserDefaults key for last reconciliation timestamp
+    static let lastReconcileKey = "lastReconcileTimestamp"
 }
 
 /// Manager for syncing video feed from the hub server
@@ -47,6 +53,16 @@ class HubSyncManager {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: HubSyncConfig.lastFeedSyncKey)
+        }
+    }
+    
+    /// Last time reconciliation was performed
+    private var lastReconcile: Date? {
+        get {
+            UserDefaults.standard.object(forKey: HubSyncConfig.lastReconcileKey) as? Date
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: HubSyncConfig.lastReconcileKey)
         }
     }
     
@@ -102,6 +118,27 @@ class HubSyncManager {
         return try await performSync()
     }
     
+    /// Check if reconciliation is allowed based on rate limiting
+    func canReconcile() -> Bool {
+        guard let last = lastReconcile else {
+            return true
+        }
+        return Date().timeIntervalSince(last) >= HubSyncConfig.minimumReconcileInterval
+    }
+    
+    /// Perform reconciliation if allowed by rate limiting
+    /// - Returns: Number of new videos found, or nil if rate limited
+    func reconcileIfAllowed() async throws -> Int? {
+        guard canReconcile() else {
+            appLog("Reconciliation skipped: rate limited", category: .feed, level: .debug)
+            return nil
+        }
+        
+        let count = try await hubServerService.reconcileChannels(userId: userId)
+        lastReconcile = Date()
+        return count
+    }
+    
     /// Perform a full sync operation
     /// - Parameter accessToken: OAuth token for YouTube API (needed for channel registration)
     /// - Returns: Number of new videos added
@@ -130,10 +167,24 @@ class HubSyncManager {
             try await registerChannels(accessToken: token)
         }
         
-        // 3. Perform incremental or full feed fetch
+        // 3. Trigger reconciliation if allowed (checks for new videos on server)
+        if canReconcile() {
+            do {
+                let newCount = try await hubServerService.reconcileChannels(userId: userId)
+                lastReconcile = Date()
+                appLog("Reconciliation found \(newCount) new videos", category: .feed, level: .success)
+            } catch {
+                // Log but don't fail the sync if reconciliation fails
+                appLog("Reconciliation failed (non-fatal): \(error)", category: .feed, level: .warning)
+            }
+        } else {
+            appLog("Reconciliation skipped: rate limited", category: .feed, level: .debug)
+        }
+        
+        // 4. Perform incremental or full feed fetch
         let newVideosCount = try await fetchFeed(accessToken: accessToken)
         
-        // 4. Update last sync timestamp
+        // 5. Update last sync timestamp
         lastFeedSync = Date()
         appLog("Hub sync completed - added \(newVideosCount) new videos", category: .feed, level: .success)
         
