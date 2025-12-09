@@ -83,6 +83,7 @@ struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var sdkPlayerReady = false
     @State private var navigationFeedback: NavigationFeedback? = nil
+    @State private var isIntentionalDismiss = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     
     /// Returns true if device is in portrait orientation (controls always visible)
@@ -161,16 +162,23 @@ struct VideoPlayerView: View {
             }
         }
         .onDisappear {
-            appLog("VideoPlayerView onDisappear triggered - checking auto-watch", category: .player, level: .info, context: [
+            appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info, context: [
                 "videoId": video.id,
                 "currentPlaybackTime": currentPlaybackTime,
-                "duration": video.duration
+                "duration": video.duration,
+                "isIntentionalDismiss": isIntentionalDismiss
             ])
-            // Always check if video should be marked as watched when view disappears
-            // This handles both explicit dismiss and system gesture dismiss
-            checkAndMarkWatchedIfNeeded()
-            controlsTimer?.invalidate()
-            cleanupPlayer()
+            
+            // Only cleanup if this is an intentional dismiss (user closed the player)
+            // AVPlayerViewController going fullscreen triggers onDisappear but we don't want to cleanup
+            if isIntentionalDismiss {
+                appLog("Intentional dismiss - cleaning up player", category: .player, level: .info)
+                checkAndMarkWatchedIfNeeded()
+                controlsTimer?.invalidate()
+                cleanupPlayer()
+            } else {
+                appLog("Not intentional dismiss (likely fullscreen transition) - keeping player alive", category: .player, level: .debug)
+            }
         }
     }
     
@@ -797,6 +805,8 @@ struct VideoPlayerView: View {
         appLog("dismissPlayerView() called explicitly", category: .player, level: .info, context: [
             "videoId": video.id
         ])
+        // Mark as intentional dismiss so onDisappear knows to cleanup
+        isIntentionalDismiss = true
         // Don't check auto-watch here - it's handled in onDisappear
         // This ensures auto-watch happens regardless of dismiss method
         onDismiss()
@@ -832,6 +842,7 @@ struct VideoPlayerView: View {
             "currentVideo": video.id,
             "hasNextVideo": nextVideo != nil
         ])
+        isIntentionalDismiss = true
         cleanupPlayer()
         onMarkWatched()
         if let next = nextVideo {
@@ -883,6 +894,7 @@ struct VideoPlayerView: View {
             return
         }
         appLog("Swipe left detected - advancing to next video", category: .player, level: .info)
+        isIntentionalDismiss = true
         showNavigationFeedback(.nextVideo)
         // Auto-watch check will happen in onDisappear when view is recreated
         // Switch to next video in-place (with slight delay for feedback)
@@ -899,6 +911,7 @@ struct VideoPlayerView: View {
             return
         }
         appLog("Swipe right detected - going to previous video", category: .player, level: .info)
+        isIntentionalDismiss = true
         showNavigationFeedback(.previousVideo)
         // Auto-watch check will happen in onDisappear when view is recreated
         // Switch to previous video in-place (with slight delay for feedback)
