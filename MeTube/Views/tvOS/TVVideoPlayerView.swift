@@ -30,6 +30,7 @@ struct TVVideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
+    @State private var videoEnded = false
     
     private let streamExtractor = YouTubeStreamExtractor.shared
     
@@ -56,11 +57,22 @@ struct TVVideoPlayerView: View {
             if loadingState != .ready {
                 loadingOverlay
             }
+            
+            // Video end overlay (dims screen when video finishes)
+            if videoEnded {
+                videoEndOverlay
+            }
         }
         .onAppear {
             loadVideo()
+            // Prevent device from sleeping during playback
+            UIApplication.shared.isIdleTimerDisabled = true
+            appLog("tvOS: Device sleep disabled for playback", category: .player, level: .debug)
         }
         .onDisappear {
+            // Re-enable device sleep
+            UIApplication.shared.isIdleTimerDisabled = false
+            appLog("tvOS: Device sleep re-enabled", category: .player, level: .debug)
             checkAndMarkWatchedIfNeeded()
             cleanupPlayer()
         }
@@ -102,6 +114,17 @@ struct TVVideoPlayerView: View {
             }
         }
         .foregroundColor(.white)
+    }
+    
+    /// Video end overlay (dims screen when video finishes to allow device sleep)
+    @ViewBuilder
+    private var videoEndOverlay: some View {
+        Color.black.opacity(0.75)
+            .edgesIgnoringSafeArea(.all)
+            .onTapGesture {
+                // Dismiss on tap
+                handleDismiss()
+            }
     }
     
     // MARK: - Video Loading
@@ -159,6 +182,20 @@ struct TVVideoPlayerView: View {
                     }
                 }
                 
+                // Observe when video ends
+                NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime,
+                    object: playerItem,
+                    queue: .main
+                ) { [weak self] _ in
+                    guard let self = self else { return }
+                    appLog("tvOS: Video playback ended", category: .player, level: .info)
+                    self.videoEnded = true
+                    // Allow device to sleep when video ends
+                    UIApplication.shared.isIdleTimerDisabled = false
+                    appLog("tvOS: Device sleep enabled (video ended)", category: .player, level: .debug)
+                }
+                
                 newPlayer.play()
                 appLog("tvOS: Playback started", category: .player, level: .success)
                 
@@ -177,6 +214,9 @@ struct TVVideoPlayerView: View {
             onSavePosition?(normalizedPosition)
             appLog("tvOS: Saved position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
         }
+        
+        // Remove notification observers
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         
         if let token = timeObserverToken {
             player?.removeTimeObserver(token)

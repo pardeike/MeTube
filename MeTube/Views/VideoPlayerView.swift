@@ -80,6 +80,7 @@ struct VideoPlayerView: View {
     @State private var isIntentionalDismiss = false
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
+    @State private var videoEnded = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     
     /// Returns true if device is in portrait orientation (controls always visible)
@@ -164,6 +165,9 @@ struct VideoPlayerView: View {
             if PlayerConfig.useDirectPlayer {
                 loadVideo()
             }
+            // Prevent device from sleeping during playback
+            UIApplication.shared.isIdleTimerDisabled = true
+            appLog("Device sleep disabled for playback", category: .player, level: .debug)
         }
         .onDisappear {
             appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info, context: [
@@ -172,6 +176,10 @@ struct VideoPlayerView: View {
                 "duration": video.duration,
                 "isIntentionalDismiss": isIntentionalDismiss
             ])
+            
+            // Re-enable device sleep
+            UIApplication.shared.isIdleTimerDisabled = false
+            appLog("Device sleep re-enabled", category: .player, level: .debug)
             
             // Only cleanup if this is an intentional dismiss (user closed the player)
             // AVPlayerViewController going fullscreen triggers onDisappear but we don't want to cleanup
@@ -246,6 +254,12 @@ struct VideoPlayerView: View {
         .overlay {
             if showingVideoInfo {
                 videoInfoOverlay
+            }
+        }
+        // Video end overlay (dims screen when video finishes)
+        .overlay {
+            if videoEnded {
+                videoEndOverlay
             }
         }
     }
@@ -383,6 +397,11 @@ struct VideoPlayerView: View {
             if showingVideoInfo {
                 videoInfoOverlay
             }
+            
+            // Video end overlay (dims screen when video finishes)
+            if videoEnded {
+                videoEndOverlay
+            }
         }
         // Tap gesture not needed in landscape mode - no overlay controls to toggle
         .gesture(
@@ -452,6 +471,17 @@ struct VideoPlayerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.opacity(0.95))
         }
+    }
+    
+    /// Video end overlay (dims screen when video finishes to allow device sleep)
+    @ViewBuilder
+    private var videoEndOverlay: some View {
+        Color.black.opacity(0.75)
+            .edgesIgnoringSafeArea(.all)
+            .onTapGesture {
+                // Dismiss on tap
+                dismissPlayerView()
+            }
     }
     
     // MARK: - Shared Control Components
@@ -700,6 +730,20 @@ struct VideoPlayerView: View {
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
                 
+                // Observe when video ends
+                NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime,
+                    object: playerItem,
+                    queue: .main
+                ) { [weak self] _ in
+                    guard let self = self else { return }
+                    appLog("Video playback ended", category: .player, level: .info)
+                    self.videoEnded = true
+                    // Allow device to sleep when video ends
+                    UIApplication.shared.isIdleTimerDisabled = false
+                    appLog("Device sleep enabled (video ended)", category: .player, level: .debug)
+                }
+                
                 // Auto-play
                 newPlayer.play()
                 appLog("Video playback started", category: .player, level: .success)
@@ -722,6 +766,9 @@ struct VideoPlayerView: View {
             onSavePosition?(normalizedPosition)
             appLog("Saved final playback position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
         }
+        
+        // Remove notification observers
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         
         // Remove time observer
         if let token = timeObserverToken {
