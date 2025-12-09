@@ -78,6 +78,36 @@ class StatusRepository {
         }
     }
     
+    /// Update or create a playback position for a video
+    /// - Parameters:
+    ///   - videoId: The video ID
+    ///   - position: The playback position in seconds
+    @discardableResult
+    func updatePlaybackPosition(forVideoId videoId: String, position: Double) throws -> StatusEntity {
+        if let existingStatus = try fetchStatus(forVideoId: videoId) {
+            // Update existing status with new position
+            existingStatus.playbackPosition = position
+            existingStatus.lastModified = Date()
+            existingStatus.synced = false
+            try modelContext.save()
+            return existingStatus
+        } else {
+            // Create new status with position
+            let newStatus = StatusEntity(videoId: videoId, status: .unknown, playbackPosition: position, synced: false)
+            modelContext.insert(newStatus)
+            try modelContext.save()
+            return newStatus
+        }
+    }
+    
+    /// Get the playback position for a video
+    func getPlaybackPosition(forVideoId videoId: String) throws -> Double {
+        if let status = try fetchStatus(forVideoId: videoId) {
+            return status.playbackPosition
+        }
+        return 0
+    }
+    
     /// Mark a status as synced to CloudKit
     func markAsSynced(videoId: String) throws {
         if let status = try fetchStatus(forVideoId: videoId) {
@@ -100,6 +130,7 @@ class StatusRepository {
         
         if let existingStatus = existingStatus {
             existingStatus.status = status.status
+            existingStatus.playbackPosition = status.playbackPosition
             existingStatus.lastModified = status.lastModified
             existingStatus.synced = status.synced
         } else {

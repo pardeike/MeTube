@@ -75,6 +75,10 @@ struct VideoPlayerView: View {
     var currentIndex: Int? = nil
     /// Total count of videos in the list
     var totalVideos: Int? = nil
+    /// Saved playback position to resume from
+    var savedPosition: TimeInterval = 0
+    /// Callback to save current playback position
+    var onSavePosition: ((TimeInterval) -> Void)? = nil
     
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
@@ -84,6 +88,8 @@ struct VideoPlayerView: View {
     @State private var sdkPlayerReady = false
     @State private var navigationFeedback: NavigationFeedback? = nil
     @State private var isIntentionalDismiss = false
+    @State private var hasResumedPosition = false
+    @State private var lastSaveTime: TimeInterval = 0
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     
     /// Returns true if device is in portrait orientation (controls always visible)
@@ -113,7 +119,9 @@ struct VideoPlayerView: View {
         onNextVideo: ((Video) -> Void)? = nil,
         onPreviousVideo: ((Video) -> Void)? = nil,
         currentIndex: Int? = nil,
-        totalVideos: Int? = nil
+        totalVideos: Int? = nil,
+        savedPosition: TimeInterval = 0,
+        onSavePosition: ((TimeInterval) -> Void)? = nil
     ) {
         self.video = video
         self.onDismiss = onDismiss
@@ -126,12 +134,15 @@ struct VideoPlayerView: View {
         self.onPreviousVideo = onPreviousVideo
         self.currentIndex = currentIndex
         self.totalVideos = totalVideos
+        self.savedPosition = savedPosition
+        self.onSavePosition = onSavePosition
         appLog("VideoPlayerView init called", category: .player, level: .info, context: [
             "videoId": video.id,
             "title": video.title,
             "duration": video.duration,
             "currentIndex": currentIndex ?? -1,
-            "totalVideos": totalVideos ?? -1
+            "totalVideos": totalVideos ?? -1,
+            "savedPosition": savedPosition
         ])
     }
     
@@ -634,8 +645,10 @@ struct VideoPlayerView: View {
     private func loadVideo() {
         appLog("loadVideo() called for video: \(video.id)", category: .player, level: .info)
         loadingState = .extracting
-        currentPlaybackTime = 0 // Reset playback time for new video
-        appLog("Loading state set to: extracting", category: .player, level: .debug)
+        currentPlaybackTime = savedPosition // Start from saved position
+        hasResumedPosition = false
+        lastSaveTime = 0 // Reset save timer for new video
+        appLog("Loading state set to: extracting, savedPosition: \(savedPosition)", category: .player, level: .debug)
         
         Task { @MainActor in
             appLog("Task started for stream extraction", category: .player, level: .debug)
@@ -672,10 +685,27 @@ struct VideoPlayerView: View {
                 loadingState = .ready
                 appLog("Loading state set to: ready", category: .player, level: .debug)
                 
-                // Set up periodic time observer to track playback position
+                // Seek to saved position if available
+                if savedPosition > 0 && !hasResumedPosition {
+                    let seekTime = CMTime(seconds: savedPosition, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+                    newPlayer.seek(to: seekTime) { [self] finished in
+                        if finished {
+                            appLog("Resumed playback from saved position: \(savedPosition)s", category: .player, level: .success)
+                            hasResumedPosition = true
+                        }
+                    }
+                }
+                
+                // Set up periodic time observer to track and save playback position
                 let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
+                timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [self] time in
                     self.currentPlaybackTime = time.seconds
+                    
+                    // Save position every 5 seconds to avoid excessive writes
+                    if abs(time.seconds - self.lastSaveTime) >= 5.0 {
+                        self.lastSaveTime = time.seconds
+                        self.onSavePosition?(time.seconds)
+                    }
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
                 
@@ -695,6 +725,12 @@ struct VideoPlayerView: View {
     
     /// Clean up player resources
     private func cleanupPlayer() {
+        // Save final playback position before cleanup
+        if currentPlaybackTime > 0 {
+            onSavePosition?(currentPlaybackTime)
+            appLog("Saved final playback position: \(currentPlaybackTime)s", category: .player, level: .info)
+        }
+        
         // Remove time observer
         if let token = timeObserverToken {
             player?.removeTimeObserver(token)
@@ -1253,6 +1289,8 @@ struct ShareSheet: UIViewControllerRepresentable {
             thumbnailURL: nil
         ),
         currentIndex: 5,
-        totalVideos: 10
+        totalVideos: 10,
+        savedPosition: 30.0,
+        onSavePosition: { _ in }
     )
 }

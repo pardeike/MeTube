@@ -113,6 +113,7 @@ struct ChannelDetailView: View {
             let nextVideo = getNextVideo(after: video)
             let previousVideo = getPreviousVideo(before: video)
             let videoIndex = getVideoIndex(for: video)
+            let savedPosition = feedViewModel.getPlaybackPosition(for: video.id)
             VideoPlayerView(
                 video: video,
                 onDismiss: {
@@ -138,7 +139,11 @@ struct ChannelDetailView: View {
                     selectedVideo = previous
                 },
                 currentIndex: videoIndex,
-                totalVideos: channelVideos.count
+                totalVideos: channelVideos.count,
+                savedPosition: savedPosition,
+                onSavePosition: { position in
+                    feedViewModel.savePlaybackPosition(for: video.id, position: position)
+                }
             )
         }
     }

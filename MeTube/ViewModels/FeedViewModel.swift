@@ -420,6 +420,35 @@ class FeedViewModel: ObservableObject {
         appLog("loadVideoStatuses called", category: .feed, level: .debug)
     }
     
+    /// Gets the saved playback position for a video
+    func getPlaybackPosition(for videoId: String) -> TimeInterval {
+        do {
+            return try statusRepository.getPlaybackPosition(forVideoId: videoId)
+        } catch {
+            appLog("Error getting playback position: \(error)", category: .feed, level: .error)
+            return 0
+        }
+    }
+    
+    /// Saves the playback position for a video
+    func savePlaybackPosition(for videoId: String, position: TimeInterval) {
+        do {
+            try statusRepository.updatePlaybackPosition(forVideoId: videoId, position: position)
+            appLog("Saved playback position for \(videoId): \(position)s", category: .feed, level: .debug)
+            
+            // Trigger background sync
+            Task {
+                do {
+                    _ = try await statusSyncManager.syncIfNeeded()
+                } catch {
+                    appLog("Background status sync failed: \(error)", category: .cloudKit, level: .error)
+                }
+            }
+        } catch {
+            appLog("Error saving playback position: \(error)", category: .feed, level: .error)
+        }
+    }
+    
     /// Marks a video as watched
     func markAsWatched(_ video: Video) async {
         appLog("Marking video as watched: \(video.title)", category: .feed, level: .info)
