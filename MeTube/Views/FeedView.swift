@@ -17,7 +17,7 @@ struct FeedView: View {
     @State private var selectedChannelId: String? = nil
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Group {
                     if feedViewModel.loadingState.isLoading && feedViewModel.allVideos.isEmpty {
@@ -211,19 +211,12 @@ struct FeedView: View {
                 )
             }
             // Navigation to channel when "Go to Channel" is tapped
-            .background(
-                NavigationLink(
-                    destination: channelDestinationView,
-                    tag: selectedChannelId ?? "",
-                    selection: Binding(
-                        get: { selectedChannelId },
-                        set: { selectedChannelId = $0 }
-                    )
-                ) {
-                    EmptyView()
-                }
-                .hidden()
-            )
+            .navigationDestination(isPresented: Binding(
+                get: { selectedChannelId != nil },
+                set: { if !$0 { selectedChannelId = nil } }
+            )) {
+                channelDestinationView
+            }
         }
     }
     
