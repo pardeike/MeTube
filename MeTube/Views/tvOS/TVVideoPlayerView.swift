@@ -192,8 +192,7 @@ struct TVVideoPlayerView: View {
                     forName: .AVPlayerItemDidPlayToEndTime,
                     object: playerItem,
                     queue: .main
-                ) { [weak self] _ in
-                    guard let self = self else { return }
+                ) { _ in
                     appLog("tvOS: Video playback ended", category: .player, level: .info)
                     self.videoEnded = true
                     // Allow device to sleep when video ends
