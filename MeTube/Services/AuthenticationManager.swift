@@ -124,6 +124,59 @@ class AuthenticationManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - Hub User ID Management
+    
+    /// Legacy UserDefaults key for hub user ID (from HubConfig.userIdKey)
+    private static let legacyHubUserIdKey = "hubUserId"
+    
+    /// Gets or creates a stable hub user ID for cross-device identity.
+    /// This ID is stored in CloudKit AppSettings and synced across all devices.
+    /// On first call, migrates any legacy UserDefaults value or generates a new UUID.
+    func getHubUserId() async -> String {
+        // 1. Check if we already have it cached in AppSettings
+        if let hubUserId = cachedAppSettings?.hubUserId, !hubUserId.isEmpty {
+            return hubUserId
+        }
+        
+        // 2. Reload from CloudKit to ensure we have latest settings
+        await loadSettingsFromCloudKit()
+        
+        // 3. Check again after reload
+        if let hubUserId = cachedAppSettings?.hubUserId, !hubUserId.isEmpty {
+            appLog("Loaded hub user ID from CloudKit: \(hubUserId)", category: .cloudKit, level: .success)
+            return hubUserId
+        }
+        
+        // 4. Migrate legacy UserDefaults value if present
+        if let legacyId = UserDefaults.standard.string(forKey: AuthenticationManager.legacyHubUserIdKey), !legacyId.isEmpty {
+            appLog("Migrating legacy hub user ID from UserDefaults: \(legacyId)", category: .cloudKit, level: .info)
+            await saveHubUserId(legacyId)
+            // Clean up legacy value after successful migration
+            UserDefaults.standard.removeObject(forKey: AuthenticationManager.legacyHubUserIdKey)
+            return legacyId
+        }
+        
+        // 5. Generate new UUID and save to CloudKit
+        let newId = UUID().uuidString
+        appLog("Generated new hub user ID: \(newId)", category: .cloudKit, level: .info)
+        await saveHubUserId(newId)
+        return newId
+    }
+    
+    /// Saves the hub user ID to CloudKit
+    private func saveHubUserId(_ hubUserId: String) async {
+        var settings = cachedAppSettings ?? .default
+        settings.hubUserId = hubUserId
+        cachedAppSettings = settings
+        
+        do {
+            try await cloudKitService.saveAppSettings(settings)
+            appLog("Saved hub user ID to CloudKit", category: .cloudKit, level: .success)
+        } catch {
+            appLog("Failed to save hub user ID to CloudKit: \(error)", category: .cloudKit, level: .error)
+        }
+    }
+    
     // MARK: - Public Methods
     
     /// Checks if user is authenticated and token is valid

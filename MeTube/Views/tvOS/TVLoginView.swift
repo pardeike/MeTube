@@ -14,42 +14,42 @@ struct TVLoginView: View {
     @State private var lastCheckTime: Date?
     
     var body: some View {
-        VStack(spacing: 50) {
+        VStack(spacing: 30) {
             Spacer()
             
             // App Logo
             Image(systemName: "play.rectangle.fill")
-                .font(.system(size: 150))
+                .font(.system(size: 100))
                 .foregroundColor(.red)
             
             // App Title
             Text("MeTube")
-                .font(.system(size: 76, weight: .bold))
+                .font(.system(size: 52, weight: .bold))
             
             Text("Your distraction-free YouTube feed")
-                .font(.title2)
+                .font(.headline)
                 .foregroundColor(.secondary)
             
             Spacer()
             
             // Instructions
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 Image(systemName: "iphone")
-                    .font(.system(size: 60))
+                    .font(.system(size: 40))
                     .foregroundColor(.blue)
                 
                 Text("Sign in with your iPhone or iPad")
-                    .font(.title)
+                    .font(.headline)
                     .fontWeight(.semibold)
                 
-                VStack(spacing: 12) {
+                VStack(spacing: 8) {
                     InstructionRow(number: 1, text: "Open the MeTube app on your iPhone or iPad")
                     InstructionRow(number: 2, text: "Sign in with your Google account")
                     InstructionRow(number: 3, text: "Your login will sync automatically via iCloud")
                 }
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 30)
             }
-            .padding(40)
+            .padding(30)
             .background(Color.gray.opacity(0.2))
             .cornerRadius(20)
             
@@ -59,7 +59,7 @@ struct TVLoginView: View {
             if let error = authManager.error {
                 Text(error)
                     .foregroundColor(.orange)
-                    .font(.caption)
+                    .font(.footnote)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
@@ -77,15 +77,15 @@ struct TVLoginView: View {
                     }
                     Text(isCheckingCloud ? "Checking..." : "Check for Login")
                 }
-                .font(.title3)
-                .padding(.horizontal, 40)
-                .padding(.vertical, 16)
+                .font(.callout)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 12)
             }
             .disabled(isCheckingCloud)
             
             if let lastCheck = lastCheckTime {
                 Text("Last checked: \(lastCheck, style: .relative)")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
             }
             
@@ -115,17 +115,17 @@ struct InstructionRow: View {
     let text: String
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             Text("\(number)")
-                .font(.title2)
+                .font(.callout)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
-                .frame(width: 40, height: 40)
+                .frame(width: 28, height: 28)
                 .background(Color.red)
                 .clipShape(Circle())
             
             Text(text)
-                .font(.title3)
+                .font(.callout)
                 .foregroundColor(.primary)
             
             Spacer()

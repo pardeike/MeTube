@@ -30,6 +30,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            // Set the auth manager reference for cross-device hub user ID
+            feedViewModel.setAuthManager(authManager)
             authManager.checkAuthenticationStatus()
         }
     }
@@ -81,9 +83,10 @@ struct TVMainTabView: View {
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
-    let viewModel = FeedViewModel(modelContext: context)
+    let authManager = AuthenticationManager()
+    let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
     
     return ContentView()
-        .environmentObject(AuthenticationManager())
+        .environmentObject(authManager)
         .environmentObject(viewModel)
 }

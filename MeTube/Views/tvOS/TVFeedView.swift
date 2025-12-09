@@ -314,10 +314,11 @@ struct TVFilterMenu: View {
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
-    let viewModel = FeedViewModel(modelContext: context)
+    let authManager = AuthenticationManager()
+    let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
     
     return TVFeedView()
-        .environmentObject(AuthenticationManager())
+        .environmentObject(authManager)
         .environmentObject(viewModel)
 }
 #endif
