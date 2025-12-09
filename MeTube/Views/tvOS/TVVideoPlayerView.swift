@@ -30,11 +30,16 @@ struct TVVideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
+    @State private var videoEnded = false
+    @State private var endObserver: NSObjectProtocol?
     
     private let streamExtractor = YouTubeStreamExtractor.shared
     
     /// Interval in seconds between playback position saves
     private let positionSaveInterval: TimeInterval = 5.0
+    
+    /// Threshold for saving position as 00:00 (in seconds from beginning)
+    private let nearStartThreshold: TimeInterval = 10.0
     
     var body: some View {
         ZStack {
@@ -53,11 +58,20 @@ struct TVVideoPlayerView: View {
             if loadingState != .ready {
                 loadingOverlay
             }
+            
+            // Video end overlay (dims screen when video finishes)
+            if videoEnded {
+                videoEndOverlay
+            }
         }
         .onAppear {
             loadVideo()
+            // Prevent device from sleeping during playback
+            disableDeviceSleep()
         }
         .onDisappear {
+            // Re-enable device sleep
+            enableDeviceSleep()
             checkAndMarkWatchedIfNeeded()
             cleanupPlayer()
         }
@@ -99,6 +113,17 @@ struct TVVideoPlayerView: View {
             }
         }
         .foregroundColor(.white)
+    }
+    
+    /// Video end overlay (dims screen when video finishes to allow device sleep)
+    @ViewBuilder
+    private var videoEndOverlay: some View {
+        Color.black.opacity(0.75)
+            .edgesIgnoringSafeArea(.all)
+            .onTapGesture {
+                // Dismiss on tap
+                handleDismiss()
+            }
     }
     
     // MARK: - Video Loading
@@ -151,8 +176,28 @@ struct TVVideoPlayerView: View {
                     // Save position periodically
                     if abs(time.seconds - self.lastSaveTime) >= self.positionSaveInterval {
                         self.lastSaveTime = time.seconds
-                        self.onSavePosition?(time.seconds)
+                        let normalizedPosition = self.normalizePosition(time.seconds)
+                        self.onSavePosition?(normalizedPosition)
                     }
+                }
+                
+                // Remove any existing end observer before adding a new one
+                if let observer = endObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    endObserver = nil
+                }
+                
+                // Observe when video ends
+                endObserver = NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime,
+                    object: playerItem,
+                    queue: .main
+                ) { [weak self] _ in
+                    guard let self = self else { return }
+                    appLog("tvOS: Video playback ended", category: .player, level: .info)
+                    self.videoEnded = true
+                    // Allow device to sleep when video ends
+                    self.enableDeviceSleep()
                 }
                 
                 newPlayer.play()
@@ -169,8 +214,15 @@ struct TVVideoPlayerView: View {
     
     private func cleanupPlayer() {
         if currentPlaybackTime > 0 {
-            onSavePosition?(currentPlaybackTime)
-            appLog("tvOS: Saved position: \(currentPlaybackTime)s", category: .player, level: .info)
+            let normalizedPosition = normalizePosition(currentPlaybackTime)
+            onSavePosition?(normalizedPosition)
+            appLog("tvOS: Saved position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
+        }
+        
+        // Remove notification observers
+        if let observer = endObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endObserver = nil
         }
         
         if let token = timeObserverToken {
@@ -180,6 +232,24 @@ struct TVVideoPlayerView: View {
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
+    }
+    
+    /// Normalizes playback position: positions less than 10s are saved as 0
+    /// This prevents "almost start" positions from being remembered
+    private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
+        return position < nearStartThreshold ? 0 : position
+    }
+    
+    /// Enables device sleep capability
+    private func enableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        appLog("tvOS: Device sleep re-enabled", category: .player, level: .debug)
+    }
+    
+    /// Disables device sleep to keep screen active during playback
+    private func disableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        appLog("tvOS: Device sleep disabled for playback", category: .player, level: .debug)
     }
     
     private func handleDismiss() {

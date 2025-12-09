@@ -9,8 +9,8 @@
 //  Toggle between players using PlayerConfig.useDirectPlayer
 //
 //  Navigation Features (iOS only):
-//  - Swipe up: Dismiss player
-//  - Swipe down: Show video info sheet
+//  - Swipe down: Dismiss player
+//  - Swipe up: Show video info sheet
 //  - Swipe left: Next video
 //  - Swipe right: Previous video
 //  - Tap: Toggle controls visibility
@@ -46,6 +46,9 @@ private enum VideoPlayerConfig {
     
     /// Interval in seconds between playback position saves
     static let positionSaveInterval: TimeInterval = 5.0
+    
+    /// Threshold for saving position as 00:00 (in seconds from beginning)
+    static let nearStartThreshold: TimeInterval = 10.0
 }
 
 struct VideoPlayerView: View {
@@ -77,6 +80,8 @@ struct VideoPlayerView: View {
     @State private var isIntentionalDismiss = false
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
+    @State private var videoEnded = false
+    @State private var endObserver: NSObjectProtocol?
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     
     /// Returns true if device is in portrait orientation (controls always visible)
@@ -161,6 +166,8 @@ struct VideoPlayerView: View {
             if PlayerConfig.useDirectPlayer {
                 loadVideo()
             }
+            // Prevent device from sleeping during playback
+            disableDeviceSleep()
         }
         .onDisappear {
             appLog("VideoPlayerView onDisappear triggered", category: .player, level: .info, context: [
@@ -169,6 +176,9 @@ struct VideoPlayerView: View {
                 "duration": video.duration,
                 "isIntentionalDismiss": isIntentionalDismiss
             ])
+            
+            // Re-enable device sleep
+            enableDeviceSleep()
             
             // Only cleanup if this is an intentional dismiss (user closed the player)
             // AVPlayerViewController going fullscreen triggers onDisappear but we don't want to cleanup
@@ -239,10 +249,15 @@ struct VideoPlayerView: View {
                     handleSwipeGesture(value: value)
                 }
         )
-        // Video info overlay (when shown)
+        // Overlays for video info and video end dimming
         .overlay {
-            if showingVideoInfo {
-                videoInfoOverlay
+            Group {
+                if showingVideoInfo {
+                    videoInfoOverlay
+                }
+                if videoEnded {
+                    videoEndOverlay
+                }
             }
         }
     }
@@ -380,6 +395,11 @@ struct VideoPlayerView: View {
             if showingVideoInfo {
                 videoInfoOverlay
             }
+            
+            // Video end overlay (dims screen when video finishes)
+            if videoEnded {
+                videoEndOverlay
+            }
         }
         // Tap gesture not needed in landscape mode - no overlay controls to toggle
         .gesture(
@@ -449,6 +469,17 @@ struct VideoPlayerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.opacity(0.95))
         }
+    }
+    
+    /// Video end overlay (dims screen when video finishes to allow device sleep)
+    @ViewBuilder
+    private var videoEndOverlay: some View {
+        Color.black.opacity(0.75)
+            .edgesIgnoringSafeArea(.all)
+            .onTapGesture {
+                // Dismiss on tap
+                dismissPlayerView()
+            }
     }
     
     // MARK: - Shared Control Components
@@ -691,10 +722,30 @@ struct VideoPlayerView: View {
                     // Save position periodically to avoid excessive writes
                     if abs(time.seconds - self.lastSaveTime) >= VideoPlayerConfig.positionSaveInterval {
                         self.lastSaveTime = time.seconds
-                        self.onSavePosition?(time.seconds)
+                        let normalizedPosition = self.normalizePosition(time.seconds)
+                        self.onSavePosition?(normalizedPosition)
                     }
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
+                
+                // Remove any existing end observer before adding a new one
+                if let observer = endObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    endObserver = nil
+                }
+                
+                // Observe when video ends
+                endObserver = NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime,
+                    object: playerItem,
+                    queue: .main
+                ) { [weak self] _ in
+                    guard let self = self else { return }
+                    appLog("Video playback ended", category: .player, level: .info)
+                    self.videoEnded = true
+                    // Allow device to sleep when video ends
+                    self.enableDeviceSleep()
+                }
                 
                 // Auto-play
                 newPlayer.play()
@@ -714,8 +765,15 @@ struct VideoPlayerView: View {
     private func cleanupPlayer() {
         // Save final playback position before cleanup
         if currentPlaybackTime > 0 {
-            onSavePosition?(currentPlaybackTime)
-            appLog("Saved final playback position: \(currentPlaybackTime)s", category: .player, level: .info)
+            let normalizedPosition = normalizePosition(currentPlaybackTime)
+            onSavePosition?(normalizedPosition)
+            appLog("Saved final playback position: \(normalizedPosition)s (original: \(currentPlaybackTime)s)", category: .player, level: .info)
+        }
+        
+        // Remove notification observers
+        if let observer = endObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endObserver = nil
         }
         
         // Remove time observer
@@ -727,6 +785,24 @@ struct VideoPlayerView: View {
         player?.replaceCurrentItem(with: nil)
         player = nil
         appLog("Player cleaned up", category: .player, level: .debug)
+    }
+    
+    /// Normalizes playback position: positions less than 10s are saved as 0
+    /// This prevents "almost start" positions from being remembered
+    private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
+        return position < VideoPlayerConfig.nearStartThreshold ? 0 : position
+    }
+    
+    /// Enables device sleep capability
+    private func enableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        appLog("Device sleep re-enabled", category: .player, level: .debug)
+    }
+    
+    /// Disables device sleep to keep screen active during playback
+    private func disableDeviceSleep() {
+        UIApplication.shared.isIdleTimerDisabled = true
+        appLog("Device sleep disabled for playback", category: .player, level: .debug)
     }
     
     /// Dismisses the player view
@@ -832,15 +908,15 @@ struct VideoPlayerView: View {
         } else {
             // Vertical swipe
             if verticalAmount < 0 {
-                // Swipe up - dismiss player
-                appLog("Swipe up detected - dismissing player", category: .player, level: .info)
-                dismissPlayerView()
-            } else if verticalAmount > 0 {
-                // Swipe down - show info sheet
-                appLog("Swipe down detected - showing info sheet", category: .player, level: .info)
+                // Swipe up - show info sheet
+                appLog("Swipe up detected - showing info sheet", category: .player, level: .info)
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showingVideoInfo = true
                 }
+            } else if verticalAmount > 0 {
+                // Swipe down - dismiss player
+                appLog("Swipe down detected - dismissing player", category: .player, level: .info)
+                dismissPlayerView()
             }
         }
     }
