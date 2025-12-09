@@ -83,7 +83,6 @@ struct VideoPlayerView: View {
     @State private var timeObserverToken: Any?
     @State private var sdkPlayerReady = false
     @State private var navigationFeedback: NavigationFeedback? = nil
-    @State private var showingPlaybackControls = false
     
     /// Shared stream extractor instance (only used for direct player)
     private let streamExtractor = YouTubeStreamExtractor.shared
@@ -399,13 +398,6 @@ struct VideoPlayerView: View {
                     }
                 }
                 
-                // Play/Pause (visual indicator - actual control is native player)
-                if PlayerConfig.useDirectPlayer {
-                    Image(systemName: "play.fill")
-                        .font(.title)
-                        .foregroundColor(.white.opacity(0.5))
-                }
-                
                 // Skip forward button
                 if PlayerConfig.useDirectPlayer && player != nil {
                     Button(action: {
@@ -639,7 +631,11 @@ struct VideoPlayerView: View {
         onMarkWatched()
         if let next = nextVideo {
             appLog("Advancing to next video: \(next.id)", category: .player, level: .info)
-            onNextVideo?(next)
+            showNavigationFeedback(.nextVideo)
+            // Switch to next video with slight delay for feedback
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.onNextVideo?(next)
+            }
         }
     }
     
