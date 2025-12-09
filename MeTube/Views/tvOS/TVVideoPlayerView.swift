@@ -31,6 +31,7 @@ struct TVVideoPlayerView: View {
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
     @State private var videoEnded = false
+    @State private var endObserver: NSObjectProtocol?
     
     private let streamExtractor = YouTubeStreamExtractor.shared
     
@@ -182,8 +183,14 @@ struct TVVideoPlayerView: View {
                     }
                 }
                 
+                // Remove any existing end observer before adding a new one
+                if let observer = endObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    endObserver = nil
+                }
+                
                 // Observe when video ends
-                NotificationCenter.default.addObserver(
+                endObserver = NotificationCenter.default.addObserver(
                     forName: .AVPlayerItemDidPlayToEndTime,
                     object: playerItem,
                     queue: .main
@@ -216,7 +223,10 @@ struct TVVideoPlayerView: View {
         }
         
         // Remove notification observers
-        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        if let observer = endObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endObserver = nil
+        }
         
         if let token = timeObserverToken {
             player?.removeTimeObserver(token)

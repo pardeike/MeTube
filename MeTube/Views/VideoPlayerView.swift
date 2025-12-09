@@ -81,6 +81,7 @@ struct VideoPlayerView: View {
     @State private var hasResumedPosition = false
     @State private var lastSaveTime: TimeInterval = 0
     @State private var videoEnded = false
+    @State private var endObserver: NSObjectProtocol?
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     
     /// Returns true if device is in portrait orientation (controls always visible)
@@ -730,8 +731,14 @@ struct VideoPlayerView: View {
                 }
                 appLog("Time observer set up", category: .player, level: .debug)
                 
+                // Remove any existing end observer before adding a new one
+                if let observer = endObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    endObserver = nil
+                }
+                
                 // Observe when video ends
-                NotificationCenter.default.addObserver(
+                endObserver = NotificationCenter.default.addObserver(
                     forName: .AVPlayerItemDidPlayToEndTime,
                     object: playerItem,
                     queue: .main
@@ -768,7 +775,10 @@ struct VideoPlayerView: View {
         }
         
         // Remove notification observers
-        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        if let observer = endObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endObserver = nil
+        }
         
         // Remove time observer
         if let token = timeObserverToken {
