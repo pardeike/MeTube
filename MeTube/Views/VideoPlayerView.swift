@@ -149,11 +149,12 @@ struct VideoPlayerView: View {
         .onAppear {
             appLog("VideoPlayerView onAppear triggered", category: .player, level: .info, context: [
                 "videoId": video.id,
-                "useDirectPlayer": PlayerConfig.useDirectPlayer
+                "useDirectPlayer": PlayerConfig.useDirectPlayer,
+                "isPortrait": isPortrait
             ])
-            if !isPortrait {
-                resetControlsTimer()
-            }
+            // In portrait mode, controls are always visible (no timer needed)
+            // In landscape mode, start the auto-hide timer
+            resetControlsTimer()
             // Only load video for direct player; SDK player handles its own loading
             if PlayerConfig.useDirectPlayer {
                 loadVideo()
@@ -299,86 +300,12 @@ struct VideoPlayerView: View {
     @ViewBuilder
     private var portraitBottomControls: some View {
         VStack(spacing: 12) {
-            // Playback progress bar (only for direct player)
-            if PlayerConfig.useDirectPlayer && loadingState == .ready {
-                PlaybackProgressBar(
-                    currentTime: currentPlaybackTime,
-                    duration: video.duration
-                )
-                .padding(.horizontal)
-            }
+            playbackProgressBarView
+            navigationButtonsView
+            positionIndicatorView
+            markWatchedButtonView
             
-            // Control buttons row
-            HStack(spacing: 24) {
-                // Previous video button
-                Button(action: {
-                    handlePreviousVideo()
-                }) {
-                    Image(systemName: "backward.end.fill")
-                        .font(.title2)
-                        .foregroundColor(previousVideo != nil ? .white : .white.opacity(0.3))
-                }
-                .disabled(previousVideo == nil)
-                
-                // Skip backward button
-                if PlayerConfig.useDirectPlayer && player != nil {
-                    Button(action: {
-                        skipBackward()
-                    }) {
-                        Image(systemName: "gobackward.10")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                // Skip forward button
-                if PlayerConfig.useDirectPlayer && player != nil {
-                    Button(action: {
-                        skipForward()
-                    }) {
-                        Image(systemName: "goforward.10")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                // Next video button
-                Button(action: {
-                    handleNextVideo()
-                }) {
-                    Image(systemName: "forward.end.fill")
-                        .font(.title2)
-                        .foregroundColor(nextVideo != nil ? .white : .white.opacity(0.3))
-                }
-                .disabled(nextVideo == nil)
-            }
-            .padding(.vertical, 8)
-            
-            // Video position indicator
-            if let index = currentIndex, let total = totalVideos {
-                Text("Video \(index) of \(total)")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            
-            // Mark as watched button (more prominent)
-            Button(action: {
-                markWatchedAndAdvance()
-            }) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Mark as Watched")
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.green.opacity(0.8))
-                .cornerRadius(20)
-            }
-            .padding(.bottom, 8)
-            
-            // Info button
+            // Info button (portrait only)
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showingVideoInfo = true
@@ -619,90 +546,109 @@ struct VideoPlayerView: View {
         }
     }
     
+    // MARK: - Shared Control Components
+    
+    /// Playback progress bar component (shared between portrait and landscape)
+    @ViewBuilder
+    private var playbackProgressBarView: some View {
+        if PlayerConfig.useDirectPlayer && loadingState == .ready {
+            PlaybackProgressBar(
+                currentTime: currentPlaybackTime,
+                duration: video.duration
+            )
+            .padding(.horizontal)
+        }
+    }
+    
+    /// Navigation buttons (previous/next video)
+    @ViewBuilder
+    private var navigationButtonsView: some View {
+        HStack(spacing: 24) {
+            // Previous video button
+            Button(action: {
+                handlePreviousVideo()
+            }) {
+                Image(systemName: "backward.end.fill")
+                    .font(.title2)
+                    .foregroundColor(previousVideo != nil ? .white : .white.opacity(0.3))
+            }
+            .disabled(previousVideo == nil)
+            
+            // Skip backward button
+            if PlayerConfig.useDirectPlayer && player != nil {
+                Button(action: {
+                    skipBackward()
+                }) {
+                    Image(systemName: "gobackward.10")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                }
+            }
+            
+            // Skip forward button
+            if PlayerConfig.useDirectPlayer && player != nil {
+                Button(action: {
+                    skipForward()
+                }) {
+                    Image(systemName: "goforward.10")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                }
+            }
+            
+            // Next video button
+            Button(action: {
+                handleNextVideo()
+            }) {
+                Image(systemName: "forward.end.fill")
+                    .font(.title2)
+                    .foregroundColor(nextVideo != nil ? .white : .white.opacity(0.3))
+            }
+            .disabled(nextVideo == nil)
+        }
+        .padding(.vertical, 8)
+    }
+    
+    /// Video position indicator
+    @ViewBuilder
+    private var positionIndicatorView: some View {
+        if let index = currentIndex, let total = totalVideos {
+            Text("Video \(index) of \(total)")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.6))
+        }
+    }
+    
+    /// Mark as watched button
+    @ViewBuilder
+    private var markWatchedButtonView: some View {
+        Button(action: {
+            markWatchedAndAdvance()
+        }) {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                Text("Mark as Watched")
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(Color.green.opacity(0.8))
+            .cornerRadius(20)
+        }
+        .padding(.bottom, 8)
+    }
+    
     // MARK: - Bottom Controls
     
-    /// Bottom control bar with playback controls and progress
+    /// Bottom control bar with playback controls and progress (landscape mode)
     @ViewBuilder
     private var bottomControlsOverlay: some View {
         VStack(spacing: 12) {
-            // Playback progress bar (only for direct player)
-            if PlayerConfig.useDirectPlayer && loadingState == .ready {
-                PlaybackProgressBar(
-                    currentTime: currentPlaybackTime,
-                    duration: video.duration
-                )
-                .padding(.horizontal)
-            }
-            
-            // Control buttons row
-            HStack(spacing: 24) {
-                // Previous video button
-                Button(action: {
-                    handlePreviousVideo()
-                }) {
-                    Image(systemName: "backward.end.fill")
-                        .font(.title2)
-                        .foregroundColor(previousVideo != nil ? .white : .white.opacity(0.3))
-                }
-                .disabled(previousVideo == nil)
-                
-                // Skip backward button
-                if PlayerConfig.useDirectPlayer && player != nil {
-                    Button(action: {
-                        skipBackward()
-                    }) {
-                        Image(systemName: "gobackward.10")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                // Skip forward button
-                if PlayerConfig.useDirectPlayer && player != nil {
-                    Button(action: {
-                        skipForward()
-                    }) {
-                        Image(systemName: "goforward.10")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                // Next video button
-                Button(action: {
-                    handleNextVideo()
-                }) {
-                    Image(systemName: "forward.end.fill")
-                        .font(.title2)
-                        .foregroundColor(nextVideo != nil ? .white : .white.opacity(0.3))
-                }
-                .disabled(nextVideo == nil)
-            }
-            .padding(.vertical, 8)
-            
-            // Video position indicator
-            if let index = currentIndex, let total = totalVideos {
-                Text("Video \(index) of \(total)")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            
-            // Mark as watched button (more prominent)
-            Button(action: {
-                markWatchedAndAdvance()
-            }) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                    Text("Mark as Watched")
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.green.opacity(0.8))
-                .cornerRadius(20)
-            }
-            .padding(.bottom, 8)
+            playbackProgressBarView
+            navigationButtonsView
+            positionIndicatorView
+            markWatchedButtonView
         }
         .padding()
         .background(
