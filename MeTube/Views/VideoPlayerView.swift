@@ -76,8 +76,6 @@ struct VideoPlayerView: View {
     /// Total count of videos in the list
     var totalVideos: Int? = nil
     
-    @State private var showingControls = true
-    @State private var controlsTimer: Timer?
     @State private var loadingState: PlayerLoadingState = .idle
     @State private var player: AVPlayer?
     @State private var showingVideoInfo = false
@@ -159,9 +157,8 @@ struct VideoPlayerView: View {
                 "useDirectPlayer": PlayerConfig.useDirectPlayer,
                 "isPortrait": isPortrait
             ])
-            // In portrait mode, controls are always visible (no timer needed)
-            // In landscape mode, start the auto-hide timer
-            resetControlsTimer()
+            // Controls are always visible in portrait mode
+            // In landscape mode, controls are removed for immersive viewing
             // Only load video for direct player; SDK player handles its own loading
             if PlayerConfig.useDirectPlayer {
                 loadVideo()
@@ -180,7 +177,6 @@ struct VideoPlayerView: View {
             if isIntentionalDismiss {
                 appLog("Intentional dismiss - cleaning up player", category: .player, level: .info)
                 checkAndMarkWatchedIfNeeded()
-                controlsTimer?.invalidate()
                 cleanupPlayer()
             } else {
                 appLog("Not intentional dismiss (likely fullscreen transition) - keeping player alive", category: .player, level: .debug)
@@ -375,20 +371,7 @@ struct VideoPlayerView: View {
                 }
             }
             
-            // Overlay Controls (auto-hiding)
-            VStack {
-                // Top Bar with controls and info
-                if showingControls {
-                    landscapeTopBar
-                }
-                
-                Spacer()
-                
-                // Bottom controls area
-                if showingControls {
-                    bottomControlsOverlay
-                }
-            }
+            // Overlay Controls removed in landscape mode for cleaner viewing experience
             
             // Navigation feedback indicator
             if let feedback = navigationFeedback {
@@ -400,102 +383,12 @@ struct VideoPlayerView: View {
                 videoInfoOverlay
             }
         }
-        .onTapGesture {
-            // Only toggle controls if not showing video info
-            if !showingVideoInfo && !showingControls {
-                appLog("Player view tapped - showing controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls = true
-                }
-                resetControlsTimer()
-            } else if !showingVideoInfo && showingControls {
-                // Tapping when controls are visible hides them
-                appLog("Player view tapped - hiding controls", category: .player, level: .debug)
-                withAnimation {
-                    showingControls = false
-                }
-            }
-        }
+        // Tap gesture not needed in landscape mode - no overlay controls to toggle
         .gesture(
             DragGesture(minimumDistance: VideoPlayerConfig.minimumSwipeDistance)
                 .onEnded { value in
                     handleSwipeGesture(value: value)
                 }
-        )
-    }
-    
-    /// Top bar for landscape mode (with gradient background)
-    @ViewBuilder
-    private var landscapeTopBar: some View {
-        VStack(spacing: 0) {
-            // Control buttons row
-            HStack {
-                Button(action: {
-                    appLog("Dismiss button tapped", category: .player, level: .info)
-                    dismissPlayerView()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-                
-                Spacer()
-                
-                // Share Button for YouTube URL
-                SharePlayButton(videoId: video.id)
-                    .frame(width: 44, height: 44)
-                
-                // AirPlay Button
-                AirPlayButton()
-                    .frame(width: 44, height: 44)
-                
-                Button(action: {
-                    appLog("Mark watched button tapped", category: .player, level: .info)
-                    markWatchedAndAdvance()
-                }) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title2)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(Circle())
-                }
-            }
-            .padding()
-            
-            // Video Info Bar
-            VStack(alignment: .leading, spacing: 8) {
-                Text(video.title)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                
-                Text(video.channelName)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                
-                HStack {
-                    Text(video.durationString)
-                    Text("•")
-                    Text(video.relativePublishDate)
-                    
-                    Spacer()
-                }
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.7), Color.clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
         )
     }
     
@@ -680,25 +573,6 @@ struct VideoPlayerView: View {
     }
     
     // MARK: - Bottom Controls
-    
-    /// Bottom control bar with playback controls and progress (landscape mode)
-    @ViewBuilder
-    private var bottomControlsOverlay: some View {
-        VStack(spacing: 12) {
-            playbackProgressBarView
-            navigationButtonsView
-            positionIndicatorView
-            actionButtonsView
-        }
-        .padding()
-        .background(
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
     
     /// Loading overlay view
     @ViewBuilder
@@ -1011,18 +885,6 @@ struct VideoPlayerView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             withAnimation(.easeOut(duration: 0.2)) {
                 self.navigationFeedback = nil
-            }
-        }
-    }
-    
-    private func resetControlsTimer() {
-        controlsTimer?.invalidate()
-        // Only auto-hide controls in landscape mode; portrait mode has always-visible controls
-        if showingControls && !isPortrait {
-            controlsTimer = Timer.scheduledTimer(withTimeInterval: VideoPlayerConfig.controlsAutoHideDelay, repeats: false) { _ in
-                withAnimation {
-                    showingControls = false
-                }
             }
         }
     }
