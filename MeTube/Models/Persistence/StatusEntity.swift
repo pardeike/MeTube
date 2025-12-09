@@ -27,6 +27,9 @@ final class StatusEntity {
     /// Current watch status
     var status: String = WatchStatus.unknown.rawValue  // Store as String for SwiftData compatibility
     
+    /// Last playback position in seconds (for resume functionality)
+    var playbackPosition: Double = 0
+    
     // MARK: - Persistence Metadata
     
     /// When the status was last modified
@@ -48,11 +51,13 @@ final class StatusEntity {
     init(
         videoId: String,
         status: WatchStatus = .unknown,
+        playbackPosition: Double = 0,
         lastModified: Date = Date(),
         synced: Bool = false
     ) {
         self.videoId = videoId
         self.status = status.rawValue
+        self.playbackPosition = playbackPosition
         self.lastModified = lastModified
         self.synced = synced
     }

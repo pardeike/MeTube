@@ -321,23 +321,31 @@ class StatusSyncManager {
                 continue
             }
             
+            // Get playback position (default to 0 if not present)
+            let playbackPosition = record["playbackPosition"] as? Double ?? 0
+            
             // Check for conflict with local changes
             if let localStatus = try statusRepository.fetchStatus(forVideoId: videoId) {
                 // Use most recent lastModified to resolve conflict
                 if lastModified > localStatus.lastModified {
                     // Remote is newer, update local
                     try statusRepository.updateStatus(forVideoId: videoId, status: status, synced: true)
+                    // Update playback position separately
+                    if let updatedStatus = try statusRepository.fetchStatus(forVideoId: videoId) {
+                        updatedStatus.playbackPosition = playbackPosition
+                        updatedStatus.synced = true
+                    }
                     processedCount += 1
-                    appLog("Updated local status from CloudKit: \(videoId) -> \(status)", category: .cloudKit, level: .debug)
+                    appLog("Updated local status from CloudKit: \(videoId) -> \(status), position: \(playbackPosition)", category: .cloudKit, level: .debug)
                 } else {
                     appLog("Local status is newer, keeping local: \(videoId)", category: .cloudKit, level: .debug)
                 }
             } else {
                 // No local status, insert from CloudKit
-                let entity = StatusEntity(videoId: videoId, status: status, lastModified: lastModified, synced: true)
+                let entity = StatusEntity(videoId: videoId, status: status, playbackPosition: playbackPosition, lastModified: lastModified, synced: true)
                 try statusRepository.saveStatus(entity)
                 processedCount += 1
-                appLog("Added status from CloudKit: \(videoId) -> \(status)", category: .cloudKit, level: .debug)
+                appLog("Added status from CloudKit: \(videoId) -> \(status), position: \(playbackPosition)", category: .cloudKit, level: .debug)
             }
         }
         
@@ -400,6 +408,7 @@ class StatusSyncManager {
             record["status"] = status.status
             record["userId"] = userId
             record["lastModified"] = status.lastModified
+            record["playbackPosition"] = status.playbackPosition
             return record
         }
         
