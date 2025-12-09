@@ -152,9 +152,10 @@ class FeedViewModel: ObservableObject {
     private let videoRepository: VideoRepository
     private let statusRepository: StatusRepository
     private let channelRepository: ChannelRepository
-    private let hubSyncManager: HubSyncManager
-    private let statusSyncManager: StatusSyncManager
+    private var hubSyncManager: HubSyncManager?
+    private var statusSyncManager: StatusSyncManager?
     private let youtubeService = YouTubeService()
+    private weak var authManager: AuthenticationManager?
     
     // MARK: - Cache
     
@@ -163,16 +164,44 @@ class FeedViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, authManager: AuthenticationManager? = nil) {
         appLog("FeedViewModel initializing with offline-first architecture", category: .feed, level: .info)
         
         // Initialize repositories
         self.videoRepository = VideoRepository(modelContext: modelContext)
         self.statusRepository = StatusRepository(modelContext: modelContext)
         self.channelRepository = ChannelRepository(modelContext: modelContext)
+        self.authManager = authManager
         
-        // Initialize sync managers
-        let userId = HubServerService.getUserId()
+        // Load data from local database
+        Task {
+            await loadLocalData()
+        }
+        
+        appLog("FeedViewModel initialized successfully", category: .feed, level: .success)
+    }
+    
+    /// Sets the authentication manager reference (needed for cross-device hub user ID)
+    /// This should be called early in the app lifecycle if not passed in init
+    func setAuthManager(_ authManager: AuthenticationManager) {
+        self.authManager = authManager
+    }
+    
+    /// Initializes the sync managers with the hub user ID from AuthenticationManager
+    /// This must be called before any sync operations
+    private func initializeSyncManagers() async {
+        guard hubSyncManager == nil else { return }
+        
+        // Get the hub user ID from AuthenticationManager (cross-device synced via CloudKit)
+        let userId: String
+        if let authManager = authManager {
+            userId = await authManager.getHubUserId()
+        } else {
+            // Fallback: generate a local UUID (shouldn't happen in normal usage)
+            userId = UUID().uuidString
+            appLog("Warning: AuthManager not available, using local UUID for hub user ID", category: .feed, level: .warning)
+        }
+        
         self.hubSyncManager = HubSyncManager(
             videoRepository: videoRepository,
             channelRepository: channelRepository,
@@ -182,13 +211,7 @@ class FeedViewModel: ObservableObject {
             statusRepository: statusRepository,
             userId: userId
         )
-        
-        // Load data from local database
-        Task {
-            await loadLocalData()
-        }
-        
-        appLog("FeedViewModel initialized successfully", category: .feed, level: .success)
+        appLog("Sync managers initialized with hub user ID: \(userId)", category: .feed, level: .info)
     }
     
     // MARK: - Data Loading
@@ -237,6 +260,15 @@ class FeedViewModel: ObservableObject {
     
     /// Sync data if needed (non-blocking check)
     func syncIfNeeded() async {
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager,
+              let statusSyncManager = statusSyncManager else {
+            appLog("Sync managers not initialized", category: .feed, level: .warning)
+            return
+        }
+        
         // Check if hub sync is needed
         if hubSyncManager.shouldSync() {
             appLog("Hub sync needed, starting in background", category: .feed, level: .info)
@@ -267,6 +299,14 @@ class FeedViewModel: ObservableObject {
     /// Perform reconciliation when app becomes active (foreground transition)
     /// This checks for new videos if 15+ minutes have passed since last reconciliation
     func reconcileOnForeground() async {
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager else {
+            appLog("Hub sync manager not initialized", category: .feed, level: .warning)
+            return
+        }
+        
         guard hubSyncManager.canReconcile() else {
             appLog("Foreground reconciliation skipped: rate limited", category: .feed, level: .debug)
             return
@@ -298,6 +338,16 @@ class FeedViewModel: ObservableObject {
     /// Full refresh from YouTube and hub server
     func fullRefresh(accessToken: String) async {
         appLog("Starting full refresh", category: .feed, level: .info)
+        
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager,
+              let statusSyncManager = statusSyncManager else {
+            appLog("Sync managers not initialized", category: .feed, level: .warning)
+            self.error = "Could not initialize sync managers"
+            return
+        }
         
         loadingState = .refreshing
         isReconciling = true
@@ -333,6 +383,16 @@ class FeedViewModel: ObservableObject {
     /// Incremental refresh (fetch new videos only)
     func incrementalRefresh(accessToken: String) async {
         appLog("Starting incremental refresh", category: .feed, level: .info)
+        
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager,
+              let statusSyncManager = statusSyncManager else {
+            appLog("Sync managers not initialized", category: .feed, level: .warning)
+            self.error = "Could not initialize sync managers"
+            return
+        }
         
         loadingState = .refreshing
         isReconciling = true
@@ -440,6 +500,8 @@ class FeedViewModel: ObservableObject {
             
             // Trigger background sync
             Task {
+                await initializeSyncManagers()
+                guard let statusSyncManager = statusSyncManager else { return }
                 do {
                     _ = try await statusSyncManager.syncIfNeeded()
                 } catch {
@@ -486,6 +548,8 @@ class FeedViewModel: ObservableObject {
             
             // Trigger background sync
             Task {
+                await initializeSyncManagers()
+                guard let statusSyncManager = statusSyncManager else { return }
                 do {
                     _ = try await statusSyncManager.syncIfNeeded()
                 } catch {
@@ -526,6 +590,15 @@ class FeedViewModel: ObservableObject {
     /// Perform background refresh
     func performBackgroundRefresh(accessToken: String) async -> Bool {
         appLog("Performing background refresh", category: .feed, level: .info)
+        
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager,
+              let statusSyncManager = statusSyncManager else {
+            appLog("Sync managers not initialized for background refresh", category: .feed, level: .warning)
+            return false
+        }
         
         do {
             // First, reconcile to check for new videos (if rate limit allows)

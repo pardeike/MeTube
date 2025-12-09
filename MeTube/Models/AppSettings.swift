@@ -28,6 +28,9 @@ struct AppSettings: Codable {
     /// Date when quota resets
     var quotaResetDate: Date?
     
+    /// Hub user ID for cross-device identity
+    var hubUserId: String?
+    
     /// Default settings
     static var `default`: AppSettings {
         AppSettings(
@@ -36,7 +39,8 @@ struct AppSettings: Codable {
             lastRefreshDate: nil,
             lastFullRefreshDate: nil,
             quotaUsedToday: 0,
-            quotaResetDate: nil
+            quotaResetDate: nil,
+            hubUserId: nil
         )
     }
     
@@ -54,16 +58,18 @@ struct AppSettings: Codable {
         record["lastFullRefreshDate"] = lastFullRefreshDate
         record["quotaUsedToday"] = quotaUsedToday
         record["quotaResetDate"] = quotaResetDate
+        record["hubUserId"] = hubUserId
         return record
     }
     
-    init(googleClientId: String? = nil, tokenExpiration: Date? = nil, lastRefreshDate: Date? = nil, lastFullRefreshDate: Date? = nil, quotaUsedToday: Int = 0, quotaResetDate: Date? = nil) {
+    init(googleClientId: String? = nil, tokenExpiration: Date? = nil, lastRefreshDate: Date? = nil, lastFullRefreshDate: Date? = nil, quotaUsedToday: Int = 0, quotaResetDate: Date? = nil, hubUserId: String? = nil) {
         self.googleClientId = googleClientId
         self.tokenExpiration = tokenExpiration
         self.lastRefreshDate = lastRefreshDate
         self.lastFullRefreshDate = lastFullRefreshDate
         self.quotaUsedToday = quotaUsedToday
         self.quotaResetDate = quotaResetDate
+        self.hubUserId = hubUserId
     }
     
     init(from record: CKRecord) {
@@ -73,5 +79,6 @@ struct AppSettings: Codable {
         self.lastFullRefreshDate = record["lastFullRefreshDate"] as? Date
         self.quotaUsedToday = record["quotaUsedToday"] as? Int ?? 0
         self.quotaResetDate = record["quotaResetDate"] as? Date
+        self.hubUserId = record["hubUserId"] as? String
     }
 }

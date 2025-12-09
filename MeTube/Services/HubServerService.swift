@@ -19,9 +19,6 @@ enum HubConfig {
     static let baseURL = "https://metube.pardeike.net"
     #endif
     
-    /// User ID key in UserDefaults
-    static let userIdKey = "hubUserId"
-    
     /// Retry configuration
     static let maxRetries = 3
     static let baseRetryDelay: TimeInterval = 1.0 // Base delay in seconds for exponential backoff
@@ -181,20 +178,6 @@ final class HubServerService: Sendable {
         self.baseURL = baseURL
         self.session = session
         appLog("HubServerService initialized with base URL: \(baseURL)", category: .feed, level: .info)
-    }
-    
-    // MARK: - User ID Management
-    
-    /// Gets or creates a stable user ID for this device
-    /// The ID is stored in UserDefaults and persists across app launches
-    static func getUserId() -> String {
-        if let saved = UserDefaults.standard.string(forKey: HubConfig.userIdKey) {
-            return saved
-        }
-        let newId = UUID().uuidString
-        UserDefaults.standard.set(newId, forKey: HubConfig.userIdKey)
-        appLog("Generated new hub user ID: \(newId)", category: .feed, level: .info)
-        return newId
     }
     
     // MARK: - Health Check
