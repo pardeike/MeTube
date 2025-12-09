@@ -322,7 +322,10 @@ class StatusSyncManager {
             }
             
             // Check for conflict with local changes
-            if let localStatus = try? statusRepository.fetchStatus(forVideoId: videoId) {
+            // Use try to properly propagate fetch errors
+            let localStatus = try statusRepository.fetchStatus(forVideoId: videoId)
+            
+            if let localStatus = localStatus {
                 // Use most recent lastModified to resolve conflict
                 if lastModified > localStatus.lastModified {
                     // Remote is newer, update local
@@ -344,9 +347,13 @@ class StatusSyncManager {
         // Process deleted records
         for recordID in deleted {
             let videoId = recordID.recordName
-            try? statusRepository.deleteStatus(forVideoId: videoId)
-            processedCount += 1
-            appLog("Deleted status from local database: \(videoId)", category: .cloudKit, level: .debug)
+            do {
+                try statusRepository.deleteStatus(forVideoId: videoId)
+                processedCount += 1
+                appLog("Deleted status from local database: \(videoId)", category: .cloudKit, level: .debug)
+            } catch {
+                appLog("Failed to delete status from local database: \(videoId) - \(error)", category: .cloudKit, level: .warning)
+            }
         }
         
         appLog("Processed \(processedCount) status changes from CloudKit", category: .cloudKit, level: .success)

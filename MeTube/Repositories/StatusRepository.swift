@@ -62,7 +62,10 @@ class StatusRepository {
     ///   - synced: Whether the status has been synced to CloudKit
     @discardableResult
     func updateStatus(forVideoId videoId: String, status: WatchStatus, synced: Bool = false) throws -> StatusEntity {
-        if let existingStatus = try? fetchStatus(forVideoId: videoId) {
+        // Use try instead of try? to properly propagate fetch errors
+        let existingStatus = try fetchStatus(forVideoId: videoId)
+        
+        if let existingStatus = existingStatus {
             // Update existing status
             existingStatus.watchStatus = status
             existingStatus.lastModified = Date()
