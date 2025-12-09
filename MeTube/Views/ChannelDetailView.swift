@@ -3,18 +3,15 @@
 //  MeTube
 //
 //  Detail view for a specific channel showing its videos
+//  Note: iOS only - tvOS uses TVChannelDetailView
 //
 
 import SwiftUI
 import SwiftData
 
-/// Filter options for channel videos
-enum ChannelVideoFilter: String, CaseIterable {
-    case all = "All Videos"
-    case unwatched = "Unwatched"
-    case skipped = "Skipped"
-}
+// ChannelVideoFilter enum is defined in SharedTypes.swift
 
+#if os(iOS)
 struct ChannelDetailView: View {
     let channel: Channel
     @EnvironmentObject var feedViewModel: FeedViewModel
@@ -236,3 +233,4 @@ struct EmptyChannelView: View {
         .environmentObject(viewModel)
     }
 }
+#endif // os(iOS)

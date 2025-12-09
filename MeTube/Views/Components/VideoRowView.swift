@@ -3,10 +3,12 @@
 //  MeTube
 //
 //  Row view for displaying a video in a list
+//  Note: iOS only - tvOS uses TVVideoRowView
 //
 
 import SwiftUI
 
+#if os(iOS)
 struct VideoRowView: View {
     let video: Video
     
@@ -129,3 +131,4 @@ struct VideoRowView: View {
     }
     .listStyle(.plain)
 }
+#endif // os(iOS)

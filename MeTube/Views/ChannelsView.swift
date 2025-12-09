@@ -3,16 +3,15 @@
 //  MeTube
 //
 //  View showing all subscribed channels
+//  Note: iOS only - tvOS uses TVChannelsView
 //
 
 import SwiftUI
 import SwiftData
 
-/// Filter options for channel list
-enum ChannelFilter: String, CaseIterable {
-    case all = "All Channels"
-    case withUnseenVideos = "With Unseen Videos"
-}
+// ChannelFilter enum is defined in SharedTypes.swift
+
+#if os(iOS)
 
 struct ChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
@@ -212,3 +211,4 @@ struct ChannelRowView: View {
         .environmentObject(viewModel)
         .environmentObject(AuthenticationManager())
 }
+#endif // os(iOS)

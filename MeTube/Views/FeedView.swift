@@ -3,11 +3,13 @@
 //  MeTube
 //
 //  Main subscription feed view showing unwatched videos
+//  Note: iOS only - tvOS uses TVFeedView
 //
 
 import SwiftUI
 import SwiftData
 
+#if os(iOS)
 struct FeedView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authManager: AuthenticationManager
@@ -569,3 +571,4 @@ struct VideoListView: View {
         .environmentObject(AuthenticationManager())
         .environmentObject(viewModel)
 }
+#endif // os(iOS)

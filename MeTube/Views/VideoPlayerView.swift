@@ -8,7 +8,7 @@
 //
 //  Toggle between players using PlayerConfig.useDirectPlayer
 //
-//  Navigation Features:
+//  Navigation Features (iOS only):
 //  - Swipe up: Dismiss player
 //  - Swipe down: Show video info sheet
 //  - Swipe left: Next video
@@ -17,31 +17,15 @@
 //
 //  Auto-watch: Video marked as watched if >2/3 played on dismiss
 //
+//  Note: tvOS uses TVVideoPlayerView instead
+//  PlayerLoadingState enum is defined in SharedTypes.swift
+//
 
 import SwiftUI
 import AVKit
 
-// MARK: - Player State
-
-/// Tracks the state of video loading and playback
-enum PlayerLoadingState: Equatable {
-    case idle
-    case extracting
-    case loading
-    case ready
-    case failed(String)
-    
-    static func == (lhs: PlayerLoadingState, rhs: PlayerLoadingState) -> Bool {
-        switch (lhs, rhs) {
-        case (.idle, .idle), (.extracting, .extracting), (.loading, .loading), (.ready, .ready):
-            return true
-        case (.failed(let l), .failed(let r)):
-            return l == r
-        default:
-            return false
-        }
-    }
-}
+// iOS-specific VideoPlayerView implementation
+#if os(iOS)
 
 /// Configuration for video player UI
 private enum VideoPlayerConfig {
@@ -1299,3 +1283,4 @@ struct ShareSheet: UIViewControllerRepresentable {
         onSavePosition: { _ in }
     )
 }
+#endif // os(iOS)

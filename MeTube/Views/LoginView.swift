@@ -3,10 +3,12 @@
 //  MeTube
 //
 //  Login screen for Google OAuth authentication
+//  Note: iOS only - tvOS uses TVLoginView
 //
 
 import SwiftUI
 
+#if os(iOS)
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var clientId: String = ""
@@ -152,3 +154,4 @@ struct ConfigurationSheet: View {
     LoginView()
         .environmentObject(AuthenticationManager())
 }
+#endif // os(iOS)
