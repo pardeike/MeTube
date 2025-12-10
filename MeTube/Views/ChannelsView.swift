@@ -83,7 +83,7 @@ struct ChannelsView: View {
             }
             .refreshable {
                 if let token = await authManager.getAccessToken() {
-                    await feedViewModel.refreshFeed(accessToken: token)
+                    await feedViewModel.refreshFeed(accessToken: token, force: true)
                 }
             }
         }

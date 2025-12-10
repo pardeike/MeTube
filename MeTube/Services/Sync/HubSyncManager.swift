@@ -128,8 +128,8 @@ class HubSyncManager {
     
     /// Perform reconciliation if allowed by rate limiting
     /// - Returns: Number of new videos found, or nil if rate limited
-    func reconcileIfAllowed() async throws -> Int? {
-        guard canReconcile() else {
+    func reconcileIfAllowed(force: Bool = false) async throws -> Int? {
+        guard force || canReconcile() else {
             appLog("Reconciliation skipped: rate limited", category: .feed, level: .debug)
             return nil
         }

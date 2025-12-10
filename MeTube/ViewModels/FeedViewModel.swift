@@ -404,7 +404,7 @@ class FeedViewModel: ObservableObject {
     }
     
     /// Incremental refresh (fetch new videos only)
-    func incrementalRefresh(accessToken: String) async {
+    func incrementalRefresh(accessToken: String, force: Bool = false) async {
         appLog("Starting incremental refresh", category: .feed, level: .info)
         
         // Ensure sync managers are initialized with cross-device hub user ID
@@ -424,7 +424,7 @@ class FeedViewModel: ObservableObject {
         do {
             // First, reconcile to check for new videos (if rate limit allows)
             loadingState = .reconciling
-            if let reconcileCount = try await hubSyncManager.reconcileIfAllowed() {
+            if let reconcileCount = try await hubSyncManager.reconcileIfAllowed(force: force) {
                 appLog("Reconciliation found \(reconcileCount) new videos", category: .feed, level: .success)
                 lastReconcileTime = Date()
             }
@@ -432,7 +432,12 @@ class FeedViewModel: ObservableObject {
             
             // Then fetch the updated feed
             loadingState = .refreshing
-            let newCount = try await hubSyncManager.syncIfNeeded()
+            let newCount: Int
+            if force {
+                newCount = try await hubSyncManager.forceSync(accessToken: accessToken)
+            } else {
+                newCount = try await hubSyncManager.syncIfNeeded()
+            }
             newVideosCount = newCount
             
             // Sync statuses
@@ -455,12 +460,12 @@ class FeedViewModel: ObservableObject {
     }
     
     /// Refresh feed (decides between full and incremental)
-    func refreshFeed(accessToken: String) async {
+    func refreshFeed(accessToken: String, force: Bool = false) async {
         // If we have no videos, do a full refresh
         if allVideos.isEmpty {
             await fullRefresh(accessToken: accessToken)
         } else {
-            await incrementalRefresh(accessToken: accessToken)
+            await incrementalRefresh(accessToken: accessToken, force: force)
         }
     }
     
