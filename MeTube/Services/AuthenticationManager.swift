@@ -66,6 +66,7 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     private let tokenKey = "com.metube.oauth.token"
     private let refreshTokenKey = "com.metube.oauth.refreshToken"
+    private static let appSettingsCacheKey = "com.metube.auth.appSettingsCache"
     
     // Client ID from Google Cloud Console - stored in CloudKit for cross-device sync
     private var _clientId: String = ""
@@ -79,6 +80,9 @@ class AuthenticationManager: NSObject, ObservableObject {
     // Cached app settings to avoid redundant CloudKit fetches
     private var cachedAppSettings: AppSettings?
     
+    /// Shared in-flight task to prevent duplicate CloudKit fetches
+    private var settingsLoadTask: Task<Void, Never>?
+    
     #if os(iOS)
     private var webAuthSession: ASWebAuthenticationSession?
     #endif
@@ -87,6 +91,8 @@ class AuthenticationManager: NSObject, ObservableObject {
     @MainActor
     override init() {
         super.init()
+        // Seed from local cache so tvOS can authenticate without waiting on CloudKit
+        loadCachedSettings()
         // Load settings from CloudKit asynchronously
         Task {
             await loadSettingsFromCloudKit()
@@ -96,18 +102,58 @@ class AuthenticationManager: NSObject, ObservableObject {
     
     // MARK: - CloudKit Settings
     
+    /// Load cached app settings from UserDefaults to avoid blocking on CloudKit during startup
+    @MainActor
+    private func loadCachedSettings() {
+        guard let data = UserDefaults.standard.data(forKey: AuthenticationManager.appSettingsCacheKey) else { return }
+        guard let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else { return }
+        applySettings(settings, source: .cache)
+    }
+    
+    /// Persist app settings locally for fast reuse on tvOS
+    private func cacheSettings(_ settings: AppSettings) {
+        guard let data = try? JSONEncoder().encode(settings) else { return }
+        UserDefaults.standard.set(data, forKey: AuthenticationManager.appSettingsCacheKey)
+    }
+    
+    /// Apply settings to in-memory cache and update auth-related fields
+    @MainActor
+    private func applySettings(_ settings: AppSettings, source: SettingsSource) {
+        cachedAppSettings = settings
+        _clientId = settings.googleClientId ?? ""
+        tokenExpiration = settings.tokenExpiration
+        cacheSettings(settings)
+        
+        let logLevel: LogLevel = (source == .cloudKit) ? .success : .debug
+        let logCategory: LogCategory = (source == .cloudKit) ? .cloudKit : .auth
+        appLog("Loaded auth settings from \(source.rawValue)", category: logCategory, level: logLevel)
+    }
+    
+    private enum SettingsSource: String {
+        case cloudKit = "CloudKit"
+        case cache = "local cache"
+    }
+    
     @MainActor
     private func loadSettingsFromCloudKit() async {
-        do {
-            if let settings = try await cloudKitService.fetchAppSettings() {
-                cachedAppSettings = settings
-                _clientId = settings.googleClientId ?? ""
-                tokenExpiration = settings.tokenExpiration
-                appLog("Loaded auth settings from CloudKit", category: .cloudKit, level: .success)
-            }
-        } catch {
-            appLog("Failed to load auth settings from CloudKit: \(error)", category: .cloudKit, level: .error)
+        // Deduplicate concurrent requests to keep tvOS startup fast
+        if let existingTask = settingsLoadTask {
+            await existingTask.value
+            return
         }
+        
+        let task = Task { @MainActor in
+            defer { settingsLoadTask = nil }
+            do {
+                if let settings = try await cloudKitService.fetchAppSettings() {
+                    applySettings(settings, source: .cloudKit)
+                }
+            } catch {
+                appLog("Failed to load auth settings from CloudKit: \(error)", category: .cloudKit, level: .error)
+            }
+        }
+        settingsLoadTask = task
+        await task.value
     }
     
     private func saveSettingsToCloudKit() async {
@@ -116,8 +162,9 @@ class AuthenticationManager: NSObject, ObservableObject {
             var settings = cachedAppSettings ?? .default
             settings.googleClientId = _clientId
             settings.tokenExpiration = tokenExpiration
-            try await cloudKitService.saveAppSettings(settings)
             cachedAppSettings = settings
+            cacheSettings(settings)
+            try await cloudKitService.saveAppSettings(settings)
             appLog("Saved auth settings to CloudKit", category: .cloudKit, level: .success)
         } catch {
             appLog("Failed to save auth settings to CloudKit: \(error)", category: .cloudKit, level: .error)
@@ -168,6 +215,7 @@ class AuthenticationManager: NSObject, ObservableObject {
         var settings = cachedAppSettings ?? .default
         settings.hubUserId = hubUserId
         cachedAppSettings = settings
+        cacheSettings(settings)
         
         do {
             try await cloudKitService.saveAppSettings(settings)
