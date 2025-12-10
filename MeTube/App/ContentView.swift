@@ -91,6 +91,10 @@ struct TVMainTabView: View {
     @State private var channelFilter: ChannelFilter = .withUnseenVideos
     @State private var channelSearchText: String = ""
     @State private var channelIsEditingSearch: Bool = false
+    @State private var channelVideoFilter: ChannelVideoFilter = .all
+    @State private var channelVideoSearchText: String = ""
+    @State private var channelVideoIsEditingSearch: Bool = false
+    @State private var isInChannelDetail: Bool = false
     @State private var feedStatusFilter: VideoStatus? = .unwatched
     @State private var feedSearchText: String = ""
     @State private var feedIsEditingSearch: Bool = false
@@ -111,7 +115,11 @@ struct TVMainTabView: View {
                     TVChannelsView(
                         selectedFilter: $channelFilter,
                         searchText: $channelSearchText,
-                        isEditingSearch: $channelIsEditingSearch
+                        isEditingSearch: $channelIsEditingSearch,
+                        videoFilter: $channelVideoFilter,
+                        videoSearchText: $channelVideoSearchText,
+                        videoIsEditingSearch: $channelVideoIsEditingSearch,
+                        isInChannelDetail: $isInChannelDetail
                     )
                 }
             }
@@ -128,52 +136,83 @@ struct TVMainTabView: View {
             if selectedTab == .channels {
                 Menu {
                     Section("Filter") {
-                        Button(action: { channelFilter = .all }) {
-                            if channelFilter == .all {
-                                Label("All Channels", systemImage: "checkmark")
+                        Button(action: {
+                            if isInChannelDetail {
+                                channelVideoFilter = .all
                             } else {
-                                Text("All Channels")
+                                channelFilter = .all
+                            }
+                        }) {
+                            if isInChannelDetail ? channelVideoFilter == .all : channelFilter == .all {
+                                Label(isInChannelDetail ? "All Videos" : "All Channels", systemImage: "checkmark")
+                            } else {
+                                Text(isInChannelDetail ? "All Videos" : "All Channels")
                             }
                         }
                         
-                        Button(action: { channelFilter = .withUnseenVideos }) {
-                            if channelFilter == .withUnseenVideos {
-                                Label("With Unseen Videos", systemImage: "checkmark")
+                        Button(action: {
+                            if isInChannelDetail {
+                                channelVideoFilter = .unwatched
                             } else {
-                                Text("With Unseen Videos")
+                                channelFilter = .withUnseenVideos
+                            }
+                        }) {
+                            if isInChannelDetail ? channelVideoFilter == .unwatched : channelFilter == .withUnseenVideos {
+                                Label(isInChannelDetail ? "Unwatched" : "With Unseen Videos", systemImage: "checkmark")
+                            } else {
+                                Text(isInChannelDetail ? "Unwatched" : "With Unseen Videos")
+                            }
+                        }
+                        
+                        if isInChannelDetail {
+                            Button(action: { channelVideoFilter = .skipped }) {
+                                if channelVideoFilter == .skipped {
+                                    Label("Skipped", systemImage: "checkmark")
+                                } else {
+                                    Text("Skipped")
+                                }
                             }
                         }
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
-                        .imageScale(.large)
-                        .padding(8)
-                        .background(
-                            Circle().fill(Color.white.opacity(0.08))
-                        )
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.9))
+                        .frame(width: 46, height: 46)
+                        .background(Circle().fill(Color.white.opacity(0.9)))
+                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 4)
                 }
                 
                 Button {
-                    if channelIsEditingSearch {
-                        // Hide field but keep query active
-                        channelIsEditingSearch = false
-                    } else if !channelSearchText.isEmpty {
-                        // Clear active search
-                        channelSearchText = ""
-                        channelIsEditingSearch = false
+                    if isInChannelDetail {
+                        if channelVideoIsEditingSearch {
+                            channelVideoIsEditingSearch = false
+                        } else if !channelVideoSearchText.isEmpty {
+                            channelVideoSearchText = ""
+                            channelVideoIsEditingSearch = false
+                        } else {
+                            channelVideoIsEditingSearch = true
+                        }
                     } else {
-                        // Start editing
-                        channelIsEditingSearch = true
+                        if channelIsEditingSearch {
+                            // Hide field but keep query active
+                            channelIsEditingSearch = false
+                        } else if !channelSearchText.isEmpty {
+                            // Clear active search
+                            channelSearchText = ""
+                            channelIsEditingSearch = false
+                        } else {
+                            // Start editing
+                            channelIsEditingSearch = true
+                        }
                     }
                 } label: {
                     Image(systemName: "magnifyingglass")
-                        .imageScale(.large)
-                        .foregroundColor((channelIsEditingSearch || !channelSearchText.isEmpty) ? .accentColor : .primary)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill((channelIsEditingSearch || !channelSearchText.isEmpty) ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.08))
-                        )
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.9))
+                        .frame(width: 46, height: 46)
+                        .background(Circle().fill(Color.white.opacity(0.9)))
+                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 4)
                     }
                     .buttonStyle(.plain)
             } else if selectedTab == .feed {
@@ -211,11 +250,11 @@ struct TVMainTabView: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
-                        .imageScale(.large)
-                        .padding(8)
-                        .background(
-                            Circle().fill(Color.white.opacity(0.08))
-                        )
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.9))
+                        .frame(width: 46, height: 46)
+                        .background(Circle().fill(Color.white.opacity(0.9)))
+                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 4)
                 }
                 
                 Button {
@@ -229,13 +268,11 @@ struct TVMainTabView: View {
                     }
                 } label: {
                     Image(systemName: "magnifyingglass")
-                        .imageScale(.large)
-                        .foregroundColor((feedIsEditingSearch || !feedSearchText.isEmpty) ? .accentColor : .primary)
-                        .padding(8)
-                        .background(
-                            Circle()
-                                .fill((feedIsEditingSearch || !feedSearchText.isEmpty) ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.08))
-                        )
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.9))
+                        .frame(width: 46, height: 46)
+                        .background(Circle().fill(Color.white.opacity(0.9)))
+                        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
             }

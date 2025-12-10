@@ -104,88 +104,107 @@ struct TVVideoRowView: View {
 struct TVVideoCardView: View {
     let video: Video
     
+    private let cardShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
+            Rectangle()
+                .fill(Color.gray.opacity(0.25))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
             AsyncImage(url: video.thumbnailURL) { phase in
                 switch phase {
                 case .empty:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.25))
+                    Color.clear
                         .overlay(ProgressView())
                 case .success(let image):
                     image
                         .resizable()
                         .scaledToFill()
                 case .failure:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.25))
+                    Color.clear
                         .overlay(
                             Image(systemName: "play.rectangle")
                                 .font(.system(size: 40, weight: .semibold))
                                 .foregroundColor(.gray)
                         )
                 @unknown default:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.25))
+                    Color.clear
                 }
             }
-            .frame(width: 460, height: 259) // 16:9 with TV-friendly footprint
-            .clipped()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // Gradient + text overlay
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.7),
-                    Color.black.opacity(0.05)
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(width: 460, height: 259)
-            .clipped()
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Spacer()
-                
-                Text(video.channelName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .shadow(radius: 6)
-                
-                Text(video.title)
-                    .font(.headline)
-                    .fontWeight(.heavy)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                    .shadow(radius: 8)
-                
-                HStack(spacing: 10) {
-                    Label(video.durationString, systemImage: "clock")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.16))
-                        .clipShape(Capsule())
-                    
-                    Text(video.relativePublishDate)
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            gradientOverlay
+            textOverlay
         }
-        .frame(width: 460, height: 259)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(cardShape)
         .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
         .opacity(video.status == .unwatched ? 1.0 : 0.78)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(16/9, contentMode: .fit)
+        .contentShape(cardShape)
+    }
+    
+    private var gradientOverlay: some View {
+        LinearGradient(
+            colors: [
+                Color.black.opacity(0.7),
+                Color.black.opacity(0.05)
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var textOverlay: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Spacer()
+            
+            Text(video.channelName)
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(1)
+                .shadow(radius: 6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            
+            Text(video.title)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .shadow(radius: 8)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            
+            HStack(spacing: 10) {
+                Label(video.durationString, systemImage: "clock")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.55))
+                    .clipShape(Capsule())
+                
+                Text(video.relativePublishDate)
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.45))
+                    .clipShape(Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
     }
 }
 

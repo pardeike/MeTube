@@ -19,9 +19,7 @@ struct TVFeedView: View {
     @State private var showingError = false
     @FocusState private var focusedVideoId: String?
     
-    private let columns = [
-        GridItem(.adaptive(minimum: 420, maximum: 480), spacing: 32)
-    ]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 24), count: 3)
     
     var body: some View {
         NavigationStack {
@@ -134,7 +132,7 @@ struct TVFeedView: View {
     @ViewBuilder
     private var videoGridView: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 36) {
+            LazyVGrid(columns: columns, spacing: 24) {
                 ForEach(feedViewModel.filteredVideos) { video in
                     Button(action: {
                         selectedVideo = video
@@ -169,7 +167,8 @@ struct TVFeedView: View {
                     }
                 }
             }
-            .padding(60)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 32)
         }
     }
     
