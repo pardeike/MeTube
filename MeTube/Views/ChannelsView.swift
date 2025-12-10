@@ -17,7 +17,7 @@ struct ChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var searchText: String = ""
-    @State private var selectedFilter: ChannelFilter = .all
+    @State private var selectedFilter: ChannelFilter = .withUnseenVideos
     
     var filteredChannels: [Channel] {
         var channels = feedViewModel.channels

@@ -12,8 +12,10 @@ import SwiftData
 struct TVChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var searchText: String = ""
-    @State private var selectedFilter: ChannelFilter = .all
+    @Binding var selectedFilter: ChannelFilter
+    @Binding var searchText: String
+    @Binding var isEditingSearch: Bool
+    @FocusState private var searchFieldFocused: Bool
     
     var filteredChannels: [Channel] {
         var channels = feedViewModel.channels
@@ -36,45 +38,43 @@ struct TVChannelsView: View {
     }
     
     private let columns = [
-        GridItem(.adaptive(minimum: 250, maximum: 350), spacing: 40)
+        GridItem(.adaptive(minimum: 360, maximum: 400), spacing: 30)
     ]
+    
+    private var isSearchActive: Bool {
+        !searchText.isEmpty
+    }
     
     var body: some View {
         NavigationStack {
-            Group {
-                if feedViewModel.isLoading && feedViewModel.channels.isEmpty {
-                    TVLoadingView(loadingState: feedViewModel.loadingState)
-                } else if filteredChannels.isEmpty {
-                    TVEmptyChannelsView(hasChannels: !feedViewModel.channels.isEmpty)
-                } else {
-                    channelGridView
-                }
-            }
-            .navigationTitle("Channels")
-            .searchable(text: $searchText, prompt: "Search channels")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Section("Filter") {
-                            Button(action: { selectedFilter = .all }) {
-                                if selectedFilter == .all {
-                                    Label("All Channels", systemImage: "checkmark")
-                                } else {
-                                    Text("All Channels")
-                                }
-                            }
-                            
-                            Button(action: { selectedFilter = .withUnseenVideos }) {
-                                if selectedFilter == .withUnseenVideos {
-                                    Label("With Unseen Videos", systemImage: "checkmark")
-                                } else {
-                                    Text("With Unseen Videos")
-                                }
-                            }
+            VStack(spacing: 8) {
+                if isEditingSearch {
+                    TextField("Search channels", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 40)
+                        .focused($searchFieldFocused)
+                        .onSubmit {
+                            isEditingSearch = false
+                            searchFieldFocused = false
                         }
-                    } label: {
-                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                
+                Group {
+                    if feedViewModel.isLoading && feedViewModel.channels.isEmpty {
+                        TVLoadingView(loadingState: feedViewModel.loadingState)
+                    } else if filteredChannels.isEmpty {
+                        TVEmptyChannelsView(hasChannels: !feedViewModel.channels.isEmpty)
+                    } else {
+                        channelGridView
                     }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .onChange(of: isEditingSearch) { _, editing in
+                if editing {
+                    searchFieldFocused = true
+                } else {
+                    searchFieldFocused = false
                 }
             }
         }
@@ -83,7 +83,7 @@ struct TVChannelsView: View {
     @ViewBuilder
     private var channelGridView: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 40) {
+            LazyVGrid(columns: columns, spacing: 30) {
                 ForEach(filteredChannels) { channel in
                     NavigationLink(destination: TVChannelDetailView(channel: channel)) {
                         TVChannelCardView(
@@ -106,52 +106,86 @@ struct TVChannelCardView: View {
     let unwatchedCount: Int
     
     var body: some View {
-        VStack(spacing: 16) {
-            // Channel Thumbnail
+        ZStack(alignment: .bottomLeading) {
             AsyncImage(url: channel.thumbnailURL) { phase in
                 switch phase {
                 case .empty:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 120, height: 120)
+                    fallbackGradient
                 case .success(let image):
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 120, height: 120)
-                        .clipShape(Circle())
+                        .scaledToFill()
                 case .failure:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 120, height: 120)
+                    fallbackGradient
                         .overlay(
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.gray)
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 54, weight: .bold))
+                                .foregroundColor(.white.opacity(0.7))
                         )
                 @unknown default:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 120, height: 120)
+                    fallbackGradient
                 }
             }
+            .frame(width: 360, height: 202)
+            .clipped()
             
-            VStack(spacing: 8) {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.75),
+                    Color.black.opacity(0.12)
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .frame(width: 360, height: 202)
+            
+            VStack(alignment: .leading, spacing: 8) {
                 Text(channel.name)
                     .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
                     .lineLimit(2)
-                    .multilineTextAlignment(.center)
+                    .shadow(radius: 8)
                 
-                if unwatchedCount > 0 {
-                    Text("\(unwatchedCount) unwatched")
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                        .fontWeight(.medium)
+                Spacer(minLength: 4)
+            }
+            .padding(16)
+            
+            if unwatchedCount > 0 {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Text("\(unwatchedCount)")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 32, height: 32)
+                            )
+                            .offset(x: -10, y: 10)
+                    }
+                    Spacer()
                 }
             }
         }
-        .frame(width: 200)
-        .padding()
+        .frame(width: 360, height: 202)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 6)
+    }
+    
+    private var fallbackGradient: some View {
+        LinearGradient(
+            colors: [
+                Color.blue.opacity(0.8),
+                Color.purple.opacity(0.7)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 
@@ -188,6 +222,8 @@ struct TVChannelDetailView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @State private var selectedVideo: Video?
     @State private var selectedFilter: ChannelVideoFilter = .all
+    @State private var searchText: String = ""
+    @State private var isEditingSearch: Bool = false
     
     var channelVideos: [Video] {
         var videos = feedViewModel.videos(for: channel.id)
@@ -205,56 +241,19 @@ struct TVChannelDetailView: View {
     }
     
     private let columns = [
-        GridItem(.adaptive(minimum: 320, maximum: 400), spacing: 40)
+        GridItem(.adaptive(minimum: 420, maximum: 480), spacing: 32)
     ]
     
     var body: some View {
-        Group {
-            if channelVideos.isEmpty {
-                TVEmptyChannelVideosView(selectedFilter: selectedFilter)
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 40) {
-                        ForEach(channelVideos) { video in
-                            Button(action: {
-                                selectedVideo = video
-                            }) {
-                                TVVideoCardView(video: video)
-                            }
-                            .buttonStyle(.card)
-                            .contextMenu {
-                                Button {
-                                    Task {
-                                        if video.status == .watched {
-                                            await feedViewModel.markAsUnwatched(video)
-                                        } else {
-                                            await feedViewModel.markAsWatched(video)
-                                        }
-                                    }
-                                } label: {
-                                    Label(
-                                        video.status == .watched ? "Mark as Unwatched" : "Mark as Watched",
-                                        systemImage: video.status == .watched ? "arrow.uturn.backward.circle" : "checkmark.circle"
-                                    )
-                                }
-                                
-                                Button {
-                                    Task {
-                                        await feedViewModel.markAsSkipped(video)
-                                    }
-                                } label: {
-                                    Label("Skip Video", systemImage: "forward.fill")
-                                }
-                            }
-                        }
-                    }
-                    .padding(60)
-                }
-            }
-        }
-        .navigationTitle(channel.name)
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                Text(channel.name)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+                
+                Spacer()
+                
                 Menu {
                     ForEach(ChannelVideoFilter.allCases, id: \.self) { filter in
                         Button(action: { selectedFilter = filter }) {
@@ -276,10 +275,93 @@ struct TVChannelDetailView: View {
                         Label("Mark All as Watched", systemImage: "checkmark.circle")
                     }
                 } label: {
-                    Label("Options", systemImage: "ellipsis.circle")
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .imageScale(.large)
+                        .padding(8)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                
+                Button {
+                    if isEditingSearch {
+                        isEditingSearch = false
+                    } else if !searchText.isEmpty {
+                        searchText = ""
+                        isEditingSearch = false
+                    } else {
+                        isEditingSearch = true
+                    }
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .imageScale(.large)
+                        .foregroundColor((isEditingSearch || !searchText.isEmpty) ? .accentColor : .primary)
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill((isEditingSearch || !searchText.isEmpty) ? Color.accentColor.opacity(0.15) : Color.white.opacity(0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 28)
+            
+            if isEditingSearch {
+                TextField("Search videos in \(channel.name)", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 40)
+                    .onSubmit {
+                        isEditingSearch = false
+                    }
+            }
+            
+            Group {
+                if channelVideos.isEmpty {
+                    TVEmptyChannelVideosView(selectedFilter: selectedFilter)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 32) {
+                            ForEach(channelVideos.filter { video in
+                                if searchText.isEmpty { return true }
+                                return video.title.lowercased().contains(searchText.lowercased())
+                            }) { video in
+                                Button(action: {
+                                    selectedVideo = video
+                                }) {
+                                    TVVideoCardView(video: video)
+                                }
+                                .buttonStyle(.card)
+                                .contextMenu {
+                                    Button {
+                                        Task {
+                                            if video.status == .watched {
+                                                await feedViewModel.markAsUnwatched(video)
+                                            } else {
+                                                await feedViewModel.markAsWatched(video)
+                                            }
+                                        }
+                                    } label: {
+                                        Label(
+                                            video.status == .watched ? "Mark as Unwatched" : "Mark as Watched",
+                                            systemImage: video.status == .watched ? "arrow.uturn.backward.circle" : "checkmark.circle"
+                                        )
+                                    }
+                                    
+                                    Button {
+                                        Task {
+                                            await feedViewModel.markAsSkipped(video)
+                                        }
+                                    } label: {
+                                        Label("Skip Video", systemImage: "forward.fill")
+                                    }
+                                }
+                            }
+                        }
+                        .padding(60)
+                    }
                 }
             }
         }
+        .navigationTitle("")
+        .navigationBarBackButtonHidden(false)
         .fullScreenCover(item: $selectedVideo) { video in
             TVVideoPlayerView(
                 video: video,
@@ -387,7 +469,11 @@ struct TVEmptyChannelVideosView: View {
     let context = ModelContext(container)
     let viewModel = FeedViewModel(modelContext: context)
     
-    return TVChannelsView()
+    return TVChannelsView(
+        selectedFilter: .constant(.withUnseenVideos),
+        searchText: .constant(""),
+        isEditingSearch: .constant(false)
+    )
         .environmentObject(viewModel)
         .environmentObject(AuthenticationManager())
 }

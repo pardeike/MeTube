@@ -105,62 +105,87 @@ struct TVVideoCardView: View {
     let video: Video
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Thumbnail
-            ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: video.thumbnailURL) { phase in
-                    switch phase {
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .overlay(ProgressView())
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .overlay(
-                                Image(systemName: "play.rectangle")
-                                    .font(.title)
-                                    .foregroundColor(.gray)
-                            )
-                    @unknown default:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                    }
+        ZStack {
+            AsyncImage(url: video.thumbnailURL) { phase in
+                switch phase {
+                case .empty:
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.25))
+                        .overlay(ProgressView())
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.25))
+                        .overlay(
+                            Image(systemName: "play.rectangle")
+                                .font(.system(size: 40, weight: .semibold))
+                                .foregroundColor(.gray)
+                        )
+                @unknown default:
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.25))
                 }
-                .frame(width: 300, height: 169) // 16:9
-                .clipped()
-                .cornerRadius(8)
-                
-                // Duration
-                Text(video.durationString)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(4)
-                    .padding(6)
             }
+            .frame(width: 460, height: 259) // 16:9 with TV-friendly footprint
+            .clipped()
             
-            // Title
-            Text(video.title)
-                .font(.callout)
-                .fontWeight(.medium)
-                .lineLimit(2)
+            // Gradient + text overlay
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.7),
+                    Color.black.opacity(0.05)
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            .frame(width: 460, height: 259)
+            .clipped()
             
-            // Channel
-            Text(video.channelName)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                Spacer()
+                
+                Text(video.channelName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .shadow(radius: 6)
+                
+                Text(video.title)
+                    .font(.headline)
+                    .fontWeight(.heavy)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                    .shadow(radius: 8)
+                
+                HStack(spacing: 10) {
+                    Label(video.durationString, systemImage: "clock")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.16))
+                        .clipShape(Capsule())
+                    
+                    Text(video.relativePublishDate)
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
-        .frame(width: 300)
-        .opacity(video.status == .unwatched ? 1.0 : 0.6)
+        .frame(width: 460, height: 259)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
+        .opacity(video.status == .unwatched ? 1.0 : 0.78)
     }
 }
 

@@ -200,8 +200,15 @@ class AuthenticationManager: NSObject, ObservableObject {
                 }
             }
         } else if let expiration = tokenExpiration, expiration > Date() {
+            // On tvOS, iCloud Keychain items aren't available, but CloudKit shares the token expiration.
+            // If the expiration is still valid, consider the user authenticated so the app can proceed.
+            #if os(tvOS)
+            appLog("Using CloudKit token expiration for tvOS authentication fallback", category: .auth, level: .info)
+            isAuthenticated = true
+            #else
             // We have a valid token expiration but no refresh token (shouldn't happen normally)
             isAuthenticated = retrieveToken() != nil
+            #endif
         } else {
             isAuthenticated = false
         }

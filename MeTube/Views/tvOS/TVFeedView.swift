@@ -12,60 +12,52 @@ import SwiftData
 struct TVFeedView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
     @EnvironmentObject var authManager: AuthenticationManager
+    @Binding var selectedStatus: VideoStatus?
+    @Binding var searchText: String
+    @Binding var isEditingSearch: Bool
     @State private var selectedVideo: Video?
     @State private var showingError = false
     @FocusState private var focusedVideoId: String?
     
     private let columns = [
-        GridItem(.adaptive(minimum: 320, maximum: 400), spacing: 40)
+        GridItem(.adaptive(minimum: 420, maximum: 480), spacing: 32)
     ]
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                if feedViewModel.loadingState.isLoading && feedViewModel.allVideos.isEmpty {
-                    TVLoadingView(loadingState: feedViewModel.loadingState)
-                } else if feedViewModel.filteredVideos.isEmpty {
-                    TVEmptyFeedView(
-                        hasVideos: !feedViewModel.allVideos.isEmpty,
-                        searchText: feedViewModel.searchText
-                    )
-                } else {
-                    videoGridView
+            VStack(spacing: 8) {
+                if isEditingSearch {
+                    TextField("Search videos", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 40)
+                        .onSubmit {
+                            feedViewModel.searchText = searchText
+                            isEditingSearch = false
+                        }
                 }
                 
-                // Loading indicator when refreshing with existing content
-                if feedViewModel.loadingState.isLoading && !feedViewModel.allVideos.isEmpty {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            TVRefreshIndicator(loadingState: feedViewModel.loadingState)
-                                .padding()
-                        }
-                        Spacer()
+                ZStack {
+                    if feedViewModel.loadingState.isLoading && feedViewModel.allVideos.isEmpty {
+                        TVLoadingView(loadingState: feedViewModel.loadingState)
+                    } else if feedViewModel.filteredVideos.isEmpty {
+                        TVEmptyFeedView(
+                            hasVideos: !feedViewModel.allVideos.isEmpty,
+                            searchText: feedViewModel.searchText
+                        )
+                    } else {
+                        videoGridView
                     }
-                }
-            }
-            .navigationTitle("Feed")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    TVFilterMenu(
-                        selectedStatus: $feedViewModel.selectedStatus,
-                        onRefresh: {
-                            Task {
-                                if let token = await authManager.getAccessToken() {
-                                    await feedViewModel.forceFullRefresh(accessToken: token)
-                                }
+                    
+                    // Loading indicator when refreshing with existing content
+                    if feedViewModel.loadingState.isLoading && !feedViewModel.allVideos.isEmpty {
+                        VStack {
+                            HStack {
+                                Spacer()
+                                TVRefreshIndicator(loadingState: feedViewModel.loadingState)
+                                    .padding()
                             }
+                            Spacer()
                         }
-                    )
-                }
-                
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(action: {
-                        authManager.signOut()
-                    }) {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 }
             }
@@ -75,9 +67,25 @@ struct TVFeedView: View {
                         await feedViewModel.refreshFeed(accessToken: token)
                     }
                 }
+                feedViewModel.selectedStatus = selectedStatus
+                feedViewModel.searchText = searchText
             }
             .onChange(of: feedViewModel.error) { _, newError in
                 showingError = newError != nil
+            }
+            .onChange(of: selectedStatus) { _, newValue in
+                feedViewModel.selectedStatus = newValue
+            }
+            .onChange(of: searchText) { _, newValue in
+                // Update live search when user types
+                feedViewModel.searchText = newValue
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .tvFeedRequestRefresh)) { _ in
+                Task {
+                    if let token = await authManager.getAccessToken() {
+                        await feedViewModel.forceFullRefresh(accessToken: token)
+                    }
+                }
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK") {
@@ -126,7 +134,7 @@ struct TVFeedView: View {
     @ViewBuilder
     private var videoGridView: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 40) {
+            LazyVGrid(columns: columns, spacing: 36) {
                 ForEach(feedViewModel.filteredVideos) { video in
                     Button(action: {
                         selectedVideo = video
@@ -317,7 +325,11 @@ struct TVFilterMenu: View {
     let authManager = AuthenticationManager()
     let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
     
-    return TVFeedView()
+    return TVFeedView(
+        selectedStatus: .constant(.unwatched),
+        searchText: .constant(""),
+        isEditingSearch: .constant(false)
+    )
         .environmentObject(authManager)
         .environmentObject(viewModel)
 }
