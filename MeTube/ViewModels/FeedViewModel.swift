@@ -356,6 +356,45 @@ class FeedViewModel: ObservableObject {
         }
     }
     
+    /// Perform a hub/status sync when the app enters foreground (including cold start)
+    /// Skips the standalone reconcile step to avoid rate limiting while still fetching new videos.
+    func syncOnForeground() async {
+        // Ensure sync managers are initialized with cross-device hub user ID
+        await initializeSyncManagers()
+        
+        guard let hubSyncManager = hubSyncManager,
+              let statusSyncManager = statusSyncManager else {
+            appLog("Sync managers not initialized for foreground sync", category: .feed, level: .warning)
+            return
+        }
+        
+        appLog("Performing foreground sync", category: .feed, level: .info)
+        
+        do {
+            let newCount = try await hubSyncManager.forceSync(includeReconciliation: false)
+            
+            var statusChanges: (pulled: Int, pushed: Int) = (0, 0)
+            do {
+                statusChanges = try await statusSyncManager.syncIfNeeded()
+            } catch {
+                appLog("Foreground status sync failed (non-fatal): \(error)", category: .cloudKit, level: .warning)
+            }
+            
+            if newCount > 0 || statusChanges.pulled > 0 || statusChanges.pushed > 0 {
+                await refreshFromDatabase()
+            }
+            
+            if newCount > 0 {
+                newVideosCount = newCount
+            }
+            
+            lastRefreshDate = Date()
+            appLog("Foreground sync completed - \(newCount) new videos", category: .feed, level: .success)
+        } catch {
+            appLog("Foreground sync failed: \(error)", category: .feed, level: .error)
+        }
+    }
+    
     // MARK: - Refresh Operations
     
     /// Full refresh from YouTube and hub server

@@ -112,17 +112,14 @@ struct MeTubeApp: App {
                 feedViewModel.scheduleBackgroundRefresh()
                 #endif
             case .active:
-                // Trigger reconciliation and sync when app becomes active
+                // Trigger foreground sync when app becomes active
                 Task {
                     // On tvOS, also try to reload credentials from iCloud
                     #if os(tvOS)
                     await authManager.reloadFromCloud()
                     #endif
                     
-                    // First, reconcile to check for new videos (respects 15-minute rate limit)
-                    await feedViewModel.reconcileOnForeground()
-                    // Then, perform regular sync if needed
-                    await feedViewModel.syncIfNeeded()
+                    await feedViewModel.syncOnForeground()
                 }
             default:
                 break

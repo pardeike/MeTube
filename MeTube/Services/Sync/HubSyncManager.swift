@@ -143,7 +143,7 @@ class HubSyncManager {
     /// - Parameter accessToken: OAuth token for YouTube API (needed for channel registration)
     /// - Returns: Number of new videos added
     @discardableResult
-    func performSync(accessToken: String? = nil) async throws -> Int {
+    func performSync(accessToken: String? = nil, includeReconciliation: Bool = true) async throws -> Int {
         // Check if already syncing
         guard !isSyncing else {
             appLog("Sync already in progress, skipping", category: .feed, level: .debug)
@@ -168,21 +168,25 @@ class HubSyncManager {
         }
         
         // 3. Trigger reconciliation if allowed (checks for new videos on server)
-        if canReconcile() {
-            do {
-                let reconcileCount = try await hubServerService.reconcileChannels(userId: userId)
-                lastReconcile = Date()
-                if reconcileCount > 0 {
-                    appLog("Reconciliation found \(reconcileCount) new videos on server", category: .feed, level: .success)
-                } else {
-                    appLog("Reconciliation completed, no new videos found", category: .feed, level: .info)
+        if includeReconciliation {
+            if canReconcile() {
+                do {
+                    let reconcileCount = try await hubServerService.reconcileChannels(userId: userId)
+                    lastReconcile = Date()
+                    if reconcileCount > 0 {
+                        appLog("Reconciliation found \(reconcileCount) new videos on server", category: .feed, level: .success)
+                    } else {
+                        appLog("Reconciliation completed, no new videos found", category: .feed, level: .info)
+                    }
+                } catch {
+                    // Log but don't fail the sync if reconciliation fails
+                    appLog("Reconciliation failed (non-fatal): \(error)", category: .feed, level: .warning)
                 }
-            } catch {
-                // Log but don't fail the sync if reconciliation fails
-                appLog("Reconciliation failed (non-fatal): \(error)", category: .feed, level: .warning)
+            } else {
+                appLog("Reconciliation skipped: rate limited", category: .feed, level: .debug)
             }
         } else {
-            appLog("Reconciliation skipped: rate limited", category: .feed, level: .debug)
+            appLog("Reconciliation skipped for requested sync", category: .feed, level: .debug)
         }
         
         // 4. Perform incremental or full feed fetch
@@ -372,9 +376,9 @@ class HubSyncManager {
     // MARK: - Force Sync
     
     /// Force a sync even if the interval hasn't elapsed
-    func forceSync(accessToken: String? = nil) async throws -> Int {
+    func forceSync(accessToken: String? = nil, includeReconciliation: Bool = true) async throws -> Int {
         appLog("Forcing hub sync", category: .feed, level: .info)
-        return try await performSync(accessToken: accessToken)
+        return try await performSync(accessToken: accessToken, includeReconciliation: includeReconciliation)
     }
     
     /// Reset sync state (for testing or troubleshooting)

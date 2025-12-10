@@ -230,46 +230,46 @@ class AuthenticationManager: NSObject, ObservableObject {
     /// Checks if user is authenticated and token is valid
     @MainActor
     func checkAuthenticationStatus() {
-        // First check if we have a refresh token - if so, we can get a new access token
-        if retrieveRefreshToken() != nil {
-            // We have a refresh token, so we're authenticated (can refresh when needed)
-            if let expiration = tokenExpiration, expiration > Date() {
-                // Token is still valid
-                isAuthenticated = true
-            } else {
-                // Token expired or unknown, but we have refresh token - try to refresh.
-                // Set authenticated to true to show the app immediately while refreshing in background.
-                // This avoids a jarring flash of the login screen for users with valid refresh tokens.
-                // If refresh fails, refreshTokenIfNeeded() will set isAuthenticated = false
-                // and display an error message asking the user to sign in again.
-                isAuthenticated = true
-                Task { @MainActor in
-                    await refreshTokenIfNeeded()
-                }
-            }
-        } else if let expiration = tokenExpiration, expiration > Date() {
-            // On tvOS, iCloud Keychain items aren't available, but CloudKit shares the token expiration.
-            // If the expiration is still valid, consider the user authenticated so the app can proceed.
-            #if os(tvOS)
-            appLog("Using CloudKit token expiration for tvOS authentication fallback", category: .auth, level: .info)
+        // Require a valid, unexpired access token before showing the app.
+        let accessToken = retrieveToken()
+        let hasValidAccessToken = {
+            guard let expiration = tokenExpiration else { return false }
+            return accessToken != nil && expiration > Date()
+        }()
+        
+        if hasValidAccessToken {
             isAuthenticated = true
-            #else
-            // We have a valid token expiration but no refresh token (shouldn't happen normally)
-            isAuthenticated = retrieveToken() != nil
-            #endif
-        } else {
-            isAuthenticated = false
+            return
+        }
+        
+        // No valid token; keep user on login until we can refresh successfully.
+        isAuthenticated = false
+        
+        // Attempt refresh if we have a refresh token.
+        if retrieveRefreshToken() != nil {
+            Task { @MainActor in
+                await refreshTokenIfNeeded()
+            }
         }
     }
     
     /// Returns the current access token, refreshing if necessary
     func getAccessToken() async -> String? {
         // Check if token needs refresh
-        if let expiration = tokenExpiration, expiration <= Date() {
+        if tokenExpiration == nil || (tokenExpiration != nil && tokenExpiration! <= Date()) {
             await refreshTokenIfNeeded()
         }
         
-        return retrieveToken()
+        guard let token = retrieveToken(),
+              let expiration = tokenExpiration,
+              expiration > Date() else {
+            await MainActor.run {
+                isAuthenticated = false
+            }
+            return nil
+        }
+        
+        return token
     }
     
     /// Initiates the OAuth sign-in flow
