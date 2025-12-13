@@ -142,6 +142,7 @@ Notes:
 - `seq` is a single, global autoincrement across all channels (not per-channel).
 - `afterSeq` is a global watermark; using `afterSeq = maxSeqReturned` fetches only newer inserts.
 - The Worker keeps only the most recent ~100 videos per channel; older rows are trimmed during scheduled updates.
+- `durationSeconds` is best-effort and may be `null`.
 
 Validation/normalization:
 
@@ -161,7 +162,8 @@ Response `200`:
 			"channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
 			"publishedAt": "2025-12-10T18:11:22Z",
 			"title": "Example",
-			"url": "https://www.youtube.com/watch?v=abcd"
+			"url": "https://www.youtube.com/watch?v=abcd",
+			"durationSeconds": 123
 		}
 	],
 	"maxSeqReturned": 12346

@@ -66,6 +66,7 @@ struct MeTubeVideoDTO: Codable {
     let publishedAt: Date
     let title: String
     let url: URL
+    let durationSeconds: Int?
 }
 
 // MARK: - Service

@@ -243,13 +243,14 @@ final class FeedViewModel: ObservableObject {
     ) -> [Video] {
         dtos.map { dto in
             let status = statusCache[dto.videoId]?.watchStatus.toVideoStatus() ?? .unwatched
+            let duration = TimeInterval(max(0, dto.durationSeconds ?? 0))
             return Video(
                 id: dto.videoId,
                 title: dto.title,
                 channelId: dto.channelId,
                 channelName: channelNameById[dto.channelId] ?? "",
                 publishedDate: dto.publishedAt,
-                duration: 0,
+                duration: duration,
                 thumbnailURL: YouTubeThumbnail.url(for: dto.videoId),
                 description: nil,
                 status: status

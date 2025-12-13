@@ -41,7 +41,7 @@ struct Video: Identifiable, Codable, Hashable {
     
     /// Returns true if this video is a YouTube Short (< 60 seconds)
     var isShort: Bool {
-        return duration < 60
+        duration > 0 && duration < 60
     }
     
     /// Human-readable duration string (e.g., "12:34")
