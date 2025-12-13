@@ -77,6 +77,44 @@ class StatusRepository {
             return newStatus
         }
     }
+
+    /// Update or create statuses for multiple videos in a single save operation.
+    /// - Parameters:
+    ///   - videoIds: Video IDs to update (deduplicated).
+    ///   - status: The new watch status.
+    ///   - synced: Whether the statuses have been synced to CloudKit.
+    /// - Returns: The updated/created `StatusEntity` objects.
+    @discardableResult
+    func updateStatuses(forVideoIds videoIds: [String], status: WatchStatus, synced: Bool = false) throws -> [StatusEntity] {
+        let uniqueIds = Array(Set(videoIds)).filter { !$0.isEmpty }
+        guard !uniqueIds.isEmpty else { return [] }
+
+        let existingStatuses = try fetchAllStatuses()
+        var statusById: [String: StatusEntity] = [:]
+        for entity in existingStatuses where statusById[entity.videoId] == nil {
+            statusById[entity.videoId] = entity
+        }
+
+        let now = Date()
+        var updated: [StatusEntity] = []
+        updated.reserveCapacity(uniqueIds.count)
+
+        for videoId in uniqueIds {
+            if let entity = statusById[videoId] {
+                entity.watchStatus = status
+                entity.lastModified = now
+                entity.synced = synced
+                updated.append(entity)
+            } else {
+                let newStatus = StatusEntity(videoId: videoId, status: status, lastModified: now, synced: synced)
+                modelContext.insert(newStatus)
+                updated.append(newStatus)
+            }
+        }
+
+        try modelContext.save()
+        return updated
+    }
     
     /// Update or create a playback position for a video
     /// - Parameters:

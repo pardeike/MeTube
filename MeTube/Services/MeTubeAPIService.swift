@@ -46,6 +46,7 @@ struct MeTubeChannelsResponse: Codable {
 struct MeTubeChannelDTO: Codable {
     let channelId: String
     let title: String?
+    let thumbnailUrl: String?
 }
 
 struct MeTubeVideosQueryRequest: Codable {
@@ -170,4 +171,3 @@ private extension ISO8601DateFormatter {
         return fallback.date(from: value)
     }
 }
-

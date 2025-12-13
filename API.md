@@ -105,7 +105,7 @@ curl -i -X POST "$BASE_URL/api/channels/register" \
 
 ## POST /api/channels
 
-Lists all channels in the database with their current titles (nullable). Titles are updated during feed ingestion (cron).
+Lists all channels in the database with their current titles and thumbnails (nullable). Titles are updated during feed ingestion (cron). Thumbnails are fetched from the channel page on a best-effort basis.
 
 Request: no body required.
 
@@ -116,7 +116,8 @@ Response `200`:
 	"channels": [
 		{
 			"channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
-			"title": "Example Channel"
+			"title": "Example Channel",
+			"thumbnailUrl": "https://yt3.googleusercontent.com/..."
 		}
 	]
 }

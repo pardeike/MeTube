@@ -122,7 +122,8 @@ struct ChannelListView: View {
                 NavigationLink(destination: ChannelDetailView(channel: channel)) {
                     ChannelRowView(
                         channel: channel,
-                        unwatchedCount: feedViewModel.unwatchedCount(for: channel.id)
+                        unwatchedCount: feedViewModel.unwatchedCount(for: channel.id),
+                        totalVideoCount: feedViewModel.totalVideoCount(for: channel.id)
                     )
                 }
             }
@@ -134,6 +135,7 @@ struct ChannelListView: View {
 struct ChannelRowView: View {
     let channel: Channel
     let unwatchedCount: Int
+    let totalVideoCount: Int
     
     var body: some View {
         HStack(spacing: 12) {
@@ -144,6 +146,10 @@ struct ChannelRowView: View {
                     Circle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 50, height: 50)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
                 case .success(let image):
                     image
                         .resizable()
@@ -162,6 +168,10 @@ struct ChannelRowView: View {
                     Circle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: 50, height: 50)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
                 }
             }
             
@@ -190,6 +200,14 @@ struct ChannelRowView: View {
                     .padding(.vertical, 4)
                     .background(Color.red)
                     .clipShape(Capsule())
+            } else if totalVideoCount > 0 {
+                Text("\(totalVideoCount)")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.gray.opacity(0.6))
+                    .clipShape(Circle())
             }
         }
         .padding(.vertical, 4)

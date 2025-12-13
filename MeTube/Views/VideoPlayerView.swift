@@ -139,11 +139,6 @@ struct VideoPlayerView: View {
     }
     
     var body: some View {
-        //let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: [
-        //    "videoId": video.id,
-        //    "useDirectPlayer": PlayerConfig.useDirectPlayer,
-        //    "isPortrait": isPortrait
-        //])
         GeometryReader { geometry in
             if isPortrait {
                 // Portrait mode: Fixed layout with controls always visible

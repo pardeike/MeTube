@@ -57,6 +57,8 @@ extension Notification.Name {
 
 #if os(tvOS)
 struct TVMainTabView: View {
+    @EnvironmentObject var feedViewModel: FeedViewModel
+
     enum TVTab: CaseIterable {
         case feed
         case channels
@@ -87,6 +89,8 @@ struct TVMainTabView: View {
     @State private var feedStatusFilter: VideoStatus? = .unwatched
     @State private var feedSearchText: String = ""
     @State private var feedIsEditingSearch: Bool = false
+    @State private var showingMarkAllWatchedConfirmation = false
+    @State private var markAllWatchedVideoIds: [String] = []
     
     var body: some View {
         VStack(spacing: 12) {
@@ -113,6 +117,20 @@ struct TVMainTabView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .alert("Mark all watched?", isPresented: $showingMarkAllWatchedConfirmation) {
+            Button("Cancel", role: .cancel) {
+                markAllWatchedVideoIds = []
+            }
+            Button("Mark all watched") {
+                let ids = markAllWatchedVideoIds
+                markAllWatchedVideoIds = []
+                Task {
+                    await feedViewModel.markVideosAsWatched(videoIds: ids)
+                }
+            }
+        } message: {
+            Text("This will mark \(markAllWatchedVideoIds.count) videos as watched.")
         }
     }
     
@@ -236,6 +254,18 @@ struct TVMainTabView: View {
                         Button("Full Refresh") {
                             NotificationCenter.default.post(name: .tvFeedRequestRefresh, object: nil)
                         }
+                    }
+
+                    Section("Actions") {
+                        Button {
+                            markAllWatchedVideoIds = feedViewModel.filteredVideos
+                                .filter { $0.status != .watched }
+                                .map(\.id)
+                            showingMarkAllWatchedConfirmation = true
+                        } label: {
+                            Label("Mark all watched", systemImage: "checkmark.circle")
+                        }
+                        .disabled(feedViewModel.filteredVideos.allSatisfy { $0.status == .watched })
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")

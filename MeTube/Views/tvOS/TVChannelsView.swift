@@ -99,7 +99,8 @@ struct TVChannelsView: View {
                     ) {
                         TVChannelCardView(
                             channel: channel,
-                            unwatchedCount: feedViewModel.unwatchedCount(for: channel.id)
+                            unwatchedCount: feedViewModel.unwatchedCount(for: channel.id),
+                            totalVideoCount: feedViewModel.totalVideoCount(for: channel.id)
                         )
                     }
                     .buttonStyle(.card)
@@ -116,6 +117,7 @@ struct TVChannelsView: View {
 struct TVChannelCardView: View {
     let channel: Channel
     let unwatchedCount: Int
+    let totalVideoCount: Int
     
     private let cardShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
     
@@ -127,6 +129,11 @@ struct TVChannelCardView: View {
                 switch phase {
                 case .empty:
                     Color.clear
+                        .overlay(
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 54, weight: .bold))
+                                .foregroundColor(.white.opacity(0.7))
+                        )
                 case .success(let image):
                     image
                         .resizable()
@@ -140,6 +147,11 @@ struct TVChannelCardView: View {
                         )
                 @unknown default:
                     Color.clear
+                        .overlay(
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 54, weight: .bold))
+                                .foregroundColor(.white.opacity(0.7))
+                        )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -154,6 +166,18 @@ struct TVChannelCardView: View {
                     .frame(width: 32, height: 32)
                     .overlay(
                         Text("\(unwatchedCount)")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    )
+                    .padding(.trailing, 10)
+                    .padding(.top, 10)
+            } else if totalVideoCount > 0 {
+                Circle()
+                    .fill(Color.gray.opacity(0.7))
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Text("\(totalVideoCount)")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundColor(.white)

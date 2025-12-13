@@ -74,6 +74,14 @@ final class FeedViewModel: ObservableObject {
         allVideos.filter { $0.channelId == channelId && $0.status == .unwatched }.count
     }
 
+    func totalVideoCount(for channelId: String) -> Int {
+        var count = 0
+        for video in allVideos where video.channelId == channelId {
+            count += 1
+        }
+        return count
+    }
+
     func videos(for channelId: String) -> [Video] {
         allVideos.filter { $0.channelId == channelId }
             .sorted { $0.publishedDate > $1.publishedDate }
@@ -149,7 +157,13 @@ final class FeedViewModel: ObservableObject {
             let (videoDTOs, maxSeqReturned) = try await videosTask
 
             let newChannels = channelDTOs
-                .map { Channel(id: $0.channelId, name: ($0.title.trimmedNonEmpty) ?? $0.channelId) }
+                .map { dto in
+                    Channel(
+                        id: dto.channelId,
+                        name: (dto.title.trimmedNonEmpty) ?? dto.channelId,
+                        thumbnailURL: dto.thumbnailUrl.trimmedNonEmpty.flatMap(URL.init(string:))
+                    )
+                }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
             let channelNameById = Dictionary(uniqueKeysWithValues: newChannels.map { ($0.id, $0.name) })
@@ -310,6 +324,36 @@ final class FeedViewModel: ObservableObject {
     func markAsUnwatched(_ video: Video) async {
         appLog("Marking video as unwatched: \(video.title)", category: .feed, level: .info)
         await updateVideoStatus(video, newStatus: .unwatched)
+    }
+
+    func markVideosAsWatched(videoIds: [String]) async {
+        let uniqueIds = Array(Set(videoIds)).filter { !$0.isEmpty }
+        guard !uniqueIds.isEmpty else { return }
+
+        do {
+            let updated = try statusRepository.updateStatuses(forVideoIds: uniqueIds, status: .watched, synced: false)
+            for entity in updated {
+                statusCache[entity.videoId] = entity
+            }
+
+            let idSet = Set(uniqueIds)
+            for index in allVideos.indices where idSet.contains(allVideos[index].id) {
+                allVideos[index].status = .watched
+            }
+
+            Task { @MainActor in
+                do {
+                    _ = try await statusSyncManager.syncIfNeeded()
+                } catch {
+                    appLog("Background status sync failed: \(error)", category: .cloudKit, level: .error)
+                }
+            }
+
+            appLog("Marked \(uniqueIds.count) videos as watched", category: .feed, level: .success)
+        } catch {
+            appLog("Error marking videos as watched: \(error)", category: .feed, level: .error)
+            self.error = "Failed to mark videos as watched"
+        }
     }
 
     private func updateVideoStatus(_ video: Video, newStatus: VideoStatus) async {
