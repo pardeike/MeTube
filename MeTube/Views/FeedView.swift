@@ -12,10 +12,8 @@ import SwiftData
 #if os(iOS)
 struct FeedView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
-    @EnvironmentObject var authManager: AuthenticationManager
     @State private var selectedVideo: Video?
     @State private var showingError = false
-    @State private var showingQuotaInfo = false
     @State private var selectedChannelId: String? = nil
     
     var body: some View {
@@ -115,45 +113,31 @@ struct FeedView: View {
                         Section("Refresh") {
                             Button(action: {
                                 Task {
-                                    if let token = await authManager.getAccessToken() {
-                                        await feedViewModel.forceFullRefresh(accessToken: token)
-                                    }
+                                    await feedViewModel.refresh()
                                 }
                             }) {
-                                Label("Full Refresh", systemImage: "arrow.clockwise.circle")
+                                Label("Refresh", systemImage: "arrow.clockwise.circle")
                             }
-                        }
-                        
-                        Section("Info") {
+
                             Button(action: {
-                                showingQuotaInfo = true
+                                Task {
+                                    await feedViewModel.resetAndRefresh()
+                                }
                             }) {
-                                Label("API Quota: \(feedViewModel.quotaInfo.remainingQuota)", systemImage: quotaIcon)
+                                Label("Reload All", systemImage: "arrow.counterclockwise")
                             }
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
                 }
-                
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        authManager.signOut()
-                    }) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                    }
-                }
             }
             .refreshable {
-                if let token = await authManager.getAccessToken() {
-                    await feedViewModel.refreshFeed(accessToken: token, force: true)
-                }
+                await feedViewModel.refresh()
             }
             .task {
                 if feedViewModel.allVideos.isEmpty {
-                    if let token = await authManager.getAccessToken() {
-                        await feedViewModel.refreshFeed(accessToken: token)
-                    }
+                    await feedViewModel.refresh(forceFull: true)
                 }
             }
             .onChange(of: feedViewModel.error) { _, newError in
@@ -165,9 +149,6 @@ struct FeedView: View {
                 }
             } message: {
                 Text(feedViewModel.error ?? "Unknown error")
-            }
-            .sheet(isPresented: $showingQuotaInfo) {
-                QuotaInfoView(quotaInfo: feedViewModel.quotaInfo, lastRefresh: feedViewModel.lastRefreshDate)
             }
             .fullScreenCover(item: $selectedVideo) { video in
                 let _ = appLog("fullScreenCover presenting video: \(video.id)", category: .ui, level: .info)
@@ -266,16 +247,6 @@ struct FeedView: View {
         let previousIndex = currentIndex - 1
         return previousIndex >= 0 ? videos[previousIndex] : nil
     }
-    
-    private var quotaIcon: String {
-        if feedViewModel.quotaInfo.isExceeded {
-            return "exclamationmark.triangle.fill"
-        } else if feedViewModel.quotaInfo.isWarning {
-            return "exclamationmark.circle"
-        } else {
-            return "chart.bar"
-        }
-    }
 }
 
 // MARK: - Detailed Loading View
@@ -312,19 +283,6 @@ struct DetailedLoadingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
-            
-            // Progress bar for video loading
-            if case .loadingVideos(let index, let total, _) = loadingState {
-                VStack(spacing: 4) {
-                    ProgressView(value: Double(index), total: Double(total))
-                        .progressViewStyle(.linear)
-                        .frame(width: 200)
-                    
-                    Text("\(index) of \(total) channels")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
         }
         .padding()
     }
@@ -333,16 +291,8 @@ struct DetailedLoadingView: View {
     
     private var loadingTitle: String {
         switch loadingState {
-        case .loadingSubscriptions:
-            return "Fetching Subscriptions"
-        case .loadingVideos:
-            return "Loading Videos"
-        case .loadingStatuses:
-            return "Syncing Status"
         case .refreshing:
-            return "Checking for Updates"
-        case .backgroundRefreshing:
-            return "Background Update"
+            return "Refreshing"
         default:
             return "Loading"
         }
@@ -368,90 +318,6 @@ struct RefreshIndicatorView: View {
         .background(.ultraThinMaterial)
         .cornerRadius(20)
         .padding(.top, 8)
-    }
-}
-
-// MARK: - Quota Info View
-
-struct QuotaInfoView: View {
-    let quotaInfo: QuotaInfo
-    let lastRefresh: Date?
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            List {
-                Section("API Usage Today") {
-                    HStack {
-                        Text("Used")
-                        Spacer()
-                        Text("\(quotaInfo.usedToday) units")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Remaining")
-                        Spacer()
-                        Text("\(quotaInfo.remainingQuota) units")
-                            .foregroundColor(quotaInfo.isWarning ? .orange : .secondary)
-                    }
-                    
-                    HStack {
-                        Text("Daily Limit")
-                        Spacer()
-                        Text("\(FeedConfig.dailyQuotaLimit) units")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // Progress bar
-                    VStack(alignment: .leading, spacing: 4) {
-                        ProgressView(value: Double(quotaInfo.usedToday), total: Double(FeedConfig.dailyQuotaLimit))
-                            .progressViewStyle(.linear)
-                            .tint(quotaInfo.isExceeded ? .red : (quotaInfo.isWarning ? .orange : .blue))
-                        
-                        Text(String(format: "%.1f%% used", quotaInfo.percentUsed))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Section("Quota Reset") {
-                    HStack {
-                        Text("Resets at")
-                        Spacer()
-                        Text("Midnight Pacific Time")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Section("Last Refresh") {
-                    if let lastRefresh = lastRefresh {
-                        HStack {
-                            Text("Time")
-                            Spacer()
-                            Text(lastRefresh, style: .relative)
-                                .foregroundColor(.secondary)
-                        }
-                    } else {
-                        Text("Not yet refreshed")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Section(footer: Text("The YouTube API has a daily quota of 10,000 units. Each refresh uses approximately 1-5 units per channel. Quota resets at midnight Pacific Time.")) {
-                    EmptyView()
-                }
-            }
-            .navigationTitle("API Quota")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -561,15 +427,13 @@ struct VideoListView: View {
 
 #Preview {
     // Create a temporary in-memory ModelContext for preview
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
-    let authManager = AuthenticationManager()
-    let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
+    let viewModel = FeedViewModel(modelContext: context)
     
-    return FeedView()
-        .environmentObject(authManager)
+    FeedView()
         .environmentObject(viewModel)
 }
 #endif // os(iOS)

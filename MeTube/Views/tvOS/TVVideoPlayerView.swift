@@ -258,11 +258,27 @@ struct TVVideoPlayerView: View {
     }
     
     private func checkAndMarkWatchedIfNeeded() {
-        let threshold = video.duration * 2.0 / 3.0
+        let duration = playbackDuration()
+        guard duration > 0 else { return }
+        
+        let threshold = duration * 2.0 / 3.0
         if currentPlaybackTime >= threshold {
             appLog("tvOS: Video watched threshold reached", category: .player, level: .info)
             onMarkWatched()
         }
+    }
+    
+    /// Returns the best-known playback duration from AVPlayer when available.
+    private func playbackDuration() -> TimeInterval {
+        guard let player else { return video.duration }
+        guard let item = player.currentItem else { return video.duration }
+        
+        let seconds = item.duration.seconds
+        if seconds.isFinite && seconds > 0 {
+            return seconds
+        }
+        
+        return video.duration
     }
 }
 

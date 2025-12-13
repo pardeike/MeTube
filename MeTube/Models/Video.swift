@@ -14,6 +14,19 @@ enum VideoStatus: String, Codable, CaseIterable {
     case skipped    // User chose to skip this video
 }
 
+extension VideoStatus {
+    func toWatchStatus() -> WatchStatus {
+        switch self {
+        case .unwatched:
+            return .unwatched
+        case .watched:
+            return .watched
+        case .skipped:
+            return .skipped
+        }
+    }
+}
+
 /// Represents a YouTube video from a subscribed channel
 struct Video: Identifiable, Codable, Hashable {
     let id: String              // YouTube video ID

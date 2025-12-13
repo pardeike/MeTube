@@ -45,16 +45,18 @@ struct VideoRowView: View {
                 .clipped()
                 .cornerRadius(8)
                 
-                // Duration Badge
-                Text(video.durationString)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(4)
-                    .padding(4)
+                // Duration Badge (only when known)
+                if video.duration > 0 {
+                    Text(video.durationString)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(4)
+                        .padding(4)
+                }
             }
             
             // Video Info

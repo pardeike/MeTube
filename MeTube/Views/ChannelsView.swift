@@ -15,7 +15,6 @@ import SwiftData
 
 struct ChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
-    @EnvironmentObject var authManager: AuthenticationManager
     @State private var searchText: String = ""
     @State private var selectedFilter: ChannelFilter = .withUnseenVideos
     
@@ -82,9 +81,7 @@ struct ChannelsView: View {
                 }
             }
             .refreshable {
-                if let token = await authManager.getAccessToken() {
-                    await feedViewModel.refreshFeed(accessToken: token, force: true)
-                }
+                await feedViewModel.refresh()
             }
         }
     }
@@ -201,14 +198,13 @@ struct ChannelRowView: View {
 
 #Preview {
     // Create a temporary in-memory ModelContext for preview
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
     let viewModel = FeedViewModel(modelContext: context)
     
-    return ChannelsView()
+    ChannelsView()
         .environmentObject(viewModel)
-        .environmentObject(AuthenticationManager())
 }
 #endif // os(iOS)

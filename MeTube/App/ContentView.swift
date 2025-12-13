@@ -10,29 +10,18 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var feedViewModel: FeedViewModel
     
     var body: some View {
         Group {
-            if authManager.isAuthenticated {
-                #if os(tvOS)
-                TVMainTabView()
-                #else
-                MainTabView()
-                #endif
-            } else {
-                #if os(tvOS)
-                TVLoginView()
-                #else
-                LoginView()
-                #endif
-            }
+            #if os(tvOS)
+            TVMainTabView()
+            #else
+            MainTabView()
+            #endif
         }
         .onAppear {
-            // Set the auth manager reference for cross-device hub user ID
-            feedViewModel.setAuthManager(authManager)
-            authManager.checkAuthenticationStatus()
+            Task { await feedViewModel.refreshOnForeground() }
         }
     }
 }
@@ -323,14 +312,12 @@ struct TVMainTabView: View {
 
 #Preview {
     // Create a temporary in-memory ModelContext for preview
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
-    let authManager = AuthenticationManager()
-    let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
+    let viewModel = FeedViewModel(modelContext: context)
     
-    return ContentView()
-        .environmentObject(authManager)
+    ContentView()
         .environmentObject(viewModel)
 }

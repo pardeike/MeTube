@@ -217,13 +217,13 @@ struct EmptyChannelView: View {
 
 #Preview {
     // Create a temporary in-memory ModelContext for preview
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
     let viewModel = FeedViewModel(modelContext: context)
     
-    return NavigationView {
+    NavigationView {
         ChannelDetailView(channel: Channel(
             id: "test",
             name: "Test Channel",

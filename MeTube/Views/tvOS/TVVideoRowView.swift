@@ -46,16 +46,18 @@ struct TVVideoRowView: View {
                 .clipped()
                 .cornerRadius(12)
                 
-                // Duration Badge
-                Text(video.durationString)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(6)
-                    .padding(8)
+                // Duration Badge (only when known)
+                if video.duration > 0 {
+                    Text(video.durationString)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.75))
+                        .cornerRadius(6)
+                        .padding(8)
+                }
             }
             
             // Video Info
@@ -184,14 +186,16 @@ struct TVVideoCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             
             HStack(spacing: 10) {
-                Label(video.durationString, systemImage: "clock")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.black.opacity(0.55))
-                    .clipShape(Capsule())
+                if video.duration > 0 {
+                    Label(video.durationString, systemImage: "clock")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.black.opacity(0.55))
+                        .clipShape(Capsule())
+                }
                 
                 Text(video.relativePublishDate)
                     .font(.caption2)

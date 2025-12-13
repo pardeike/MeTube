@@ -139,11 +139,11 @@ struct VideoPlayerView: View {
     }
     
     var body: some View {
-        let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: [
-            "videoId": video.id,
-            "useDirectPlayer": PlayerConfig.useDirectPlayer,
-            "isPortrait": isPortrait
-        ])
+        //let _ = appLog("VideoPlayerView body evaluated", category: .player, level: .debug, context: [
+        //    "videoId": video.id,
+        //    "useDirectPlayer": PlayerConfig.useDirectPlayer,
+        //    "isPortrait": isPortrait
+        //])
         GeometryReader { geometry in
             if isPortrait {
                 // Portrait mode: Fixed layout with controls always visible
@@ -305,8 +305,10 @@ struct VideoPlayerView: View {
                     .foregroundColor(.white.opacity(0.8))
                 
                 HStack {
-                    Text(video.durationString)
-                    Text("•")
+                    if video.duration > 0 {
+                        Text(video.durationString)
+                        Text("•")
+                    }
                     Text(video.relativePublishDate)
                 }
                 .font(.caption)
@@ -443,7 +445,9 @@ struct VideoPlayerView: View {
                         
                         // Metadata
                         HStack(spacing: 12) {
-                            Label(video.durationString, systemImage: "clock")
+                            if video.duration > 0 {
+                                Label(video.durationString, systemImage: "clock")
+                            }
                             Label(video.relativePublishDate, systemImage: "calendar")
                         }
                         .font(.caption)
@@ -490,7 +494,7 @@ struct VideoPlayerView: View {
         if PlayerConfig.useDirectPlayer && loadingState == .ready {
             PlaybackProgressBar(
                 currentTime: currentPlaybackTime,
-                duration: video.duration
+                duration: playbackDuration()
             )
             .padding(.horizontal)
         }
@@ -791,6 +795,20 @@ struct VideoPlayerView: View {
     private func normalizePosition(_ position: TimeInterval) -> TimeInterval {
         return position < VideoPlayerConfig.nearStartThreshold ? 0 : position
     }
+
+    /// Returns the best-known playback duration.
+    /// For direct playback, prefer the AVPlayerItem duration once available.
+    private func playbackDuration() -> TimeInterval {
+        guard PlayerConfig.useDirectPlayer, let player else { return video.duration }
+        guard let item = player.currentItem else { return video.duration }
+
+        let seconds = item.duration.seconds
+        if seconds.isFinite && seconds > 0 {
+            return seconds
+        }
+
+        return video.duration
+    }
     
     /// Enables device sleep capability
     private func enableDeviceSleep() {
@@ -819,22 +837,31 @@ struct VideoPlayerView: View {
     /// Checks if video should be marked as watched based on playback position
     /// Marks video as watched if playback position is over 2/3 of the video duration
     private func checkAndMarkWatchedIfNeeded() {
-        let threshold = video.duration * 2.0 / 3.0
+        let duration = playbackDuration()
+        guard duration > 0 else {
+            appLog("Video duration unknown; skipping auto-watch check", category: .player, level: .debug, context: [
+                "videoId": video.id,
+                "currentTime": currentPlaybackTime
+            ])
+            return
+        }
+        
+        let threshold = duration * 2.0 / 3.0
         if currentPlaybackTime >= threshold {
-            appLog("Video watched threshold reached (\(currentPlaybackTime)s / \(video.duration)s)", 
+            appLog("Video watched threshold reached (\(currentPlaybackTime)s / \(duration)s)",
                    category: .player, level: .info, context: [
                 "videoId": video.id,
                 "currentTime": currentPlaybackTime,
-                "duration": video.duration,
+                "duration": duration,
                 "threshold": threshold
             ])
             onMarkWatched()
         } else {
-            appLog("Video not watched enough (\(currentPlaybackTime)s / \(video.duration)s)", 
+            appLog("Video not watched enough (\(currentPlaybackTime)s / \(duration)s)",
                    category: .player, level: .debug, context: [
                 "videoId": video.id,
                 "currentTime": currentPlaybackTime,
-                "duration": video.duration,
+                "duration": duration,
                 "threshold": threshold
             ])
         }
@@ -957,7 +984,9 @@ struct VideoPlayerView: View {
     /// Skip forward by the configured interval
     private func skipForward() {
         guard let player = player else { return }
-        let newTime = min(currentPlaybackTime + VideoPlayerConfig.skipInterval, video.duration)
+        let duration = playbackDuration()
+        let unclamped = currentPlaybackTime + VideoPlayerConfig.skipInterval
+        let newTime = duration > 0 ? min(unclamped, duration) : unclamped
         let cmTime = CMTime(seconds: newTime, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         player.seek(to: cmTime) { _ in
             appLog("Skipped forward to \(newTime)s", category: .player, level: .debug)
@@ -1139,7 +1168,9 @@ struct VideoInfoSheet: View {
                         
                         // Metadata
                         HStack(spacing: 12) {
-                            Label(video.durationString, systemImage: "clock")
+                            if video.duration > 0 {
+                                Label(video.durationString, systemImage: "clock")
+                            }
                             Label(video.relativePublishDate, systemImage: "calendar")
                         }
                         .font(.caption)

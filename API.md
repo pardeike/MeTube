@@ -4,6 +4,7 @@ This Worker currently exposes:
 
 - `GET /`
 - `GET /health`
+- `POST /api/channels`
 - `POST /api/channels/register`
 - `POST /api/videos/query`
 
@@ -100,6 +101,29 @@ Error example (empty list):
 curl -i -X POST "$BASE_URL/api/channels/register" \
   -H 'content-type: application/json' \
   -d '{"channelIds":[]}'
+```
+
+## POST /api/channels
+
+Lists all channels in the database with their current titles (nullable). Titles are updated during feed ingestion (cron).
+
+Request: no body required.
+
+Response `200`:
+
+```json
+{
+	"channels": [
+		{
+			"channelId": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+			"title": "Example Channel"
+		}
+	]
+}
+```
+
+```sh
+curl -i -X POST "$BASE_URL/api/channels"
 ```
 
 ## POST /api/videos/query

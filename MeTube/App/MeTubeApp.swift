@@ -11,10 +11,9 @@ import SwiftData
 
 @main
 struct MeTubeApp: App {
-    @StateObject private var authManager = AuthenticationManager()
     @Environment(\.scenePhase) private var scenePhase
     
-    // SwiftData model container for offline-first architecture
+    // SwiftData model container (StatusEntity only)
     let modelContainer: ModelContainer
     
     // FeedViewModel will be created after ModelContainer is ready
@@ -24,8 +23,6 @@ struct MeTubeApp: App {
         // Initialize SwiftData model container
         do {
             let schema = Schema([
-                VideoEntity.self,
-                ChannelEntity.self,
                 StatusEntity.self
             ])
             
@@ -54,8 +51,6 @@ struct MeTubeApp: App {
             // Attempt recovery by deleting the old store and creating a new one
             do {
                 let schema = Schema([
-                    VideoEntity.self,
-                    ChannelEntity.self,
                     StatusEntity.self
                 ])
                 
@@ -100,48 +95,19 @@ struct MeTubeApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(authManager)
                 .environmentObject(feedViewModel)
                 .modelContainer(modelContainer)
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
-            case .background:
-                #if os(iOS)
-                // Schedule background refresh when app enters background (iOS only)
-                feedViewModel.scheduleBackgroundRefresh()
-                #endif
             case .active:
-                // Trigger foreground sync when app becomes active
+                // Refresh whenever the app becomes active (cold start or foreground transition)
                 Task {
-                    // On tvOS, also try to reload credentials from iCloud
-                    #if os(tvOS)
-                    await authManager.reloadFromCloud()
-                    #endif
-                    
-                    await feedViewModel.syncOnForeground()
+                    await feedViewModel.refreshOnForeground()
                 }
             default:
                 break
             }
         }
-        #if os(iOS)
-        .backgroundTask(.appRefresh(FeedConfig.backgroundTaskIdentifier)) {
-            await handleBackgroundRefresh()
-        }
-        #endif
     }
-    
-    #if os(iOS)
-    @Sendable
-    private func handleBackgroundRefresh() async {
-        // Get access token and perform background refresh
-        if let token = await authManager.getAccessToken() {
-            let _ = await feedViewModel.performBackgroundRefresh(accessToken: token)
-        }
-        
-        // Schedule next background refresh
-        feedViewModel.scheduleBackgroundRefresh()
-    }
-    #endif
 }

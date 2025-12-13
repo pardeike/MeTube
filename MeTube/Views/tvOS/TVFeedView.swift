@@ -11,7 +11,6 @@ import SwiftData
 #if os(tvOS)
 struct TVFeedView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
-    @EnvironmentObject var authManager: AuthenticationManager
     @Binding var selectedStatus: VideoStatus?
     @Binding var searchText: String
     @Binding var isEditingSearch: Bool
@@ -61,9 +60,7 @@ struct TVFeedView: View {
             }
             .task {
                 if feedViewModel.allVideos.isEmpty {
-                    if let token = await authManager.getAccessToken() {
-                        await feedViewModel.refreshFeed(accessToken: token)
-                    }
+                    await feedViewModel.refresh(forceFull: true)
                 }
                 feedViewModel.selectedStatus = selectedStatus
                 feedViewModel.searchText = searchText
@@ -80,9 +77,7 @@ struct TVFeedView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .tvFeedRequestRefresh)) { _ in
                 Task {
-                    if let token = await authManager.getAccessToken() {
-                        await feedViewModel.forceFullRefresh(accessToken: token)
-                    }
+                    await feedViewModel.resetAndRefresh()
                 }
             }
             .alert("Error", isPresented: $showingError) {
@@ -307,7 +302,7 @@ struct TVFilterMenu: View {
             
             Section("Refresh") {
                 Button(action: onRefresh) {
-                    Label("Full Refresh", systemImage: "arrow.clockwise.circle")
+                    Label("Refresh", systemImage: "arrow.clockwise.circle")
                 }
             }
         } label: {
@@ -317,19 +312,17 @@ struct TVFilterMenu: View {
 }
 
 #Preview {
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
-    let authManager = AuthenticationManager()
-    let viewModel = FeedViewModel(modelContext: context, authManager: authManager)
+    let viewModel = FeedViewModel(modelContext: context)
     
-    return TVFeedView(
+    TVFeedView(
         selectedStatus: .constant(.unwatched),
         searchText: .constant(""),
         isEditingSearch: .constant(false)
     )
-        .environmentObject(authManager)
         .environmentObject(viewModel)
 }
 #endif

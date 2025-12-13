@@ -8,19 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0673A8962EE3044800C31341 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
-		0673A8982EE30C8400C31341 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8972EE30C8400C31341 /* AppSettings.swift */; };
-		0F8444D09091048ECB3B1724 /* ChannelRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AF423DBD7CC0C08E0734E3 /* ChannelRepository.swift */; };
+		100000021 /* MeTubeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000021 /* MeTubeAPIService.swift */; };
 		100000001 /* MeTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000001 /* MeTubeApp.swift */; };
 		100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000002 /* ContentView.swift */; };
 		100000003 /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000003 /* Channel.swift */; };
 		100000004 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000004 /* Video.swift */; };
-		100000005 /* YouTubeAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000005 /* YouTubeAPIModels.swift */; };
-		100000006 /* YouTubeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000006 /* YouTubeService.swift */; };
 		100000007 /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000007 /* CloudKitService.swift */; };
-		100000008 /* AuthenticationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000008 /* AuthenticationManager.swift */; };
 		100000009 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000009 /* FeedViewModel.swift */; };
 		100000010 /* PlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000010 /* PlayerViewModel.swift */; };
-		100000011 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000011 /* LoginView.swift */; };
 		100000012 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000012 /* FeedView.swift */; };
 		100000013 /* ChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000013 /* ChannelsView.swift */; };
 		100000014 /* ChannelDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000014 /* ChannelDetailView.swift */; };
@@ -28,109 +23,77 @@
 		100000016 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000016 /* VideoRowView.swift */; };
 		100000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000017 /* Assets.xcassets */; };
 		100000018 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
-		15F3424394ADF866D92169BE /* VideoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE54DF8A09FCE1A6E60C9DD /* VideoRepository.swift */; };
-		3E0E48ACAC479999A727A93B /* VideoEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85644FF4BBFE1D7727820ECC /* VideoEntity.swift */; };
 		5BD041818E1A3B782FFEF745 /* StatusRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */; };
-		80BA4D0684715B4706447404 /* ChannelEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1697480D86B3E079E8226D5B /* ChannelEntity.swift */; };
 		AA1111111111111111111111 /* PlatformUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60943A59224648B1E37CF1D /* PlatformUtilities.swift */; };
 		AA7777777777777777777777 /* SharedTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB7777777777777777777777 /* SharedTypes.swift */; };
 		B50D40F4ABD9FCD448507532 /* StatusSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */; };
 		B6B9483EA9F3CC47B7E77883 /* PlayerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCF4ABC875044960A321F21 /* PlayerConfig.swift */; };
 		C2164322B1C913958BE0DCD9 /* YouTubeSDKPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E184F31BF701DD6A0668F2F /* YouTubeSDKPlayerView.swift */; };
-		D63945F4B4452FBB80E3274F /* ModelConverters.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6148879EF59164E980DFE2 /* ModelConverters.swift */; };
-		E1B0B1E12EE63B2F00AF77A6 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */; };
-		E1EF0D9E2EE8D31D00762E56 /* YouTubeAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000005 /* YouTubeAPIModels.swift */; };
+		E1EF0DE02EE8D31D00762E56 /* MeTubeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000021 /* MeTubeAPIService.swift */; };
 		E1EF0D9F2EE8D31D00762E56 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000012 /* FeedView.swift */; };
 		E1EF0DA02EE8D31D00762E56 /* ChannelDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000014 /* ChannelDetailView.swift */; };
 		E1EF0DA12EE8D31D00762E56 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8952EE3044800C31341 /* Logger.swift */; };
-		E1EF0DA22EE8D31D00762E56 /* AuthenticationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000008 /* AuthenticationManager.swift */; };
 		E1EF0DA32EE8D31D00762E56 /* PlayerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCF4ABC875044960A321F21 /* PlayerConfig.swift */; };
-		E1EF0DA42EE8D31D00762E56 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0673A8972EE30C8400C31341 /* AppSettings.swift */; };
 		E1EF0DA52EE8D31D00762E56 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000002 /* ContentView.swift */; };
 		E1EF0DA62EE8D31D00762E56 /* PlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000010 /* PlayerViewModel.swift */; };
-		E1EF0DA72EE8D31D00762E56 /* ChannelEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1697480D86B3E079E8226D5B /* ChannelEntity.swift */; };
-		E1EF0DA82EE8D31D00762E56 /* HubSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */; };
 		E1EF0DA92EE8D31D00762E56 /* StatusEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */; };
 		E1EF0DAA2EE8D31D00762E56 /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000009 /* FeedViewModel.swift */; };
 		E1EF0DAB2EE8D31D00762E56 /* CloudKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000007 /* CloudKitService.swift */; };
-		E1EF0DAC2EE8D31D00762E56 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000011 /* LoginView.swift */; };
 		E1EF0DAD2EE8D31D00762E56 /* VideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000016 /* VideoRowView.swift */; };
 		E1EF0DAE2EE8D31D00762E56 /* MeTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000001 /* MeTubeApp.swift */; };
 		E1EF0DAF2EE8D31D00762E56 /* ChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000013 /* ChannelsView.swift */; };
 		E1EF0DB02EE8D31D00762E56 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000015 /* VideoPlayerView.swift */; };
-		E1EF0DB12EE8D31D00762E56 /* HubServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */; };
-		E1EF0DB22EE8D31D00762E56 /* YouTubeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000006 /* YouTubeService.swift */; };
-		E1EF0DB32EE8D31D00762E56 /* VideoEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85644FF4BBFE1D7727820ECC /* VideoEntity.swift */; };
 		E1EF0DB42EE8D31D00762E56 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000004 /* Video.swift */; };
 		E1EF0DB52EE8D31D00762E56 /* StatusSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */; };
 		E1EF0DB62EE8D31D00762E56 /* Channel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000003 /* Channel.swift */; };
 		E1EF0DB72EE8D31D00762E56 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000020 /* YouTubeStreamExtractor.swift */; };
-		E1EF0DB82EE8D31D00762E56 /* ModelConverters.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6148879EF59164E980DFE2 /* ModelConverters.swift */; };
 		E1EF0DB92EE8D31D00762E56 /* YouTubeSDKPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E184F31BF701DD6A0668F2F /* YouTubeSDKPlayerView.swift */; };
 		E1EF0DBC2EE8D36A00762E56 /* SharedTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB7777777777777777777777 /* SharedTypes.swift */; };
 		E1EF0DBE2EE8D36A00762E56 /* PlatformUtilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60943A59224648B1E37CF1D /* PlatformUtilities.swift */; };
 		E1EF0DC72EE8D45200762E56 /* TVVideoRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC52EE8D45200762E56 /* TVVideoRowView.swift */; };
-		E1EF0DC82EE8D45200762E56 /* TVLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC32EE8D45200762E56 /* TVLoginView.swift */; };
 		E1EF0DC92EE8D45200762E56 /* TVFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC22EE8D45200762E56 /* TVFeedView.swift */; };
 		E1EF0DCA2EE8D45200762E56 /* TVVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC42EE8D45200762E56 /* TVVideoPlayerView.swift */; };
 		E1EF0DCB2EE8D45200762E56 /* TVChannelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DC12EE8D45200762E56 /* TVChannelsView.swift */; };
 		E1EF0DD22EE8D67600762E56 /* StatusRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */; };
-		E1EF0DD32EE8D67600762E56 /* VideoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DD02EE8D67600762E56 /* VideoRepository.swift */; };
-		E1EF0DD42EE8D67600762E56 /* ChannelRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1EF0DCE2EE8D67600762E56 /* ChannelRepository.swift */; };
 		E1EF0DD52EE8EA8400762E56 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1EF0DCC2EE8D50800762E56 /* Assets.xcassets */; };
 		E53945E3B2E6C8A907E1851C /* StatusEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */; };
-		F2A84B5E8E1DAE2964CF20E2 /* HubSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXFileReference section */
-		0673A8952EE3044800C31341 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
-		0673A8972EE30C8400C31341 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
-		1697480D86B3E079E8226D5B /* ChannelEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChannelEntity.swift; path = MeTube/Models/Persistence/ChannelEntity.swift; sourceTree = SOURCE_ROOT; };
-		200000000 /* MeTube-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeTube-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		200000001 /* MeTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
-		200000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		200000003 /* Channel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Channel.swift; sourceTree = "<group>"; };
-		200000004 /* Video.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
-		200000005 /* YouTubeAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeAPIModels.swift; sourceTree = "<group>"; };
-		200000006 /* YouTubeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
-		200000007 /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
-		200000008 /* AuthenticationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationManager.swift; sourceTree = "<group>"; };
-		200000009 /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
-		200000010 /* PlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewModel.swift; sourceTree = "<group>"; };
-		200000011 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		200000012 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
-		200000013 /* ChannelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelsView.swift; sourceTree = "<group>"; };
-		200000014 /* ChannelDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelDetailView.swift; sourceTree = "<group>"; };
+	/* Begin PBXFileReference section */
+			0673A8952EE3044800C31341 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+			200000000 /* MeTube-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeTube-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+			200000001 /* MeTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeApp.swift; sourceTree = "<group>"; };
+			200000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+			200000003 /* Channel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Channel.swift; sourceTree = "<group>"; };
+			200000004 /* Video.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Video.swift; sourceTree = "<group>"; };
+			200000007 /* CloudKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitService.swift; sourceTree = "<group>"; };
+			200000009 /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
+			200000010 /* PlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewModel.swift; sourceTree = "<group>"; };
+			200000012 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+			200000013 /* ChannelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelsView.swift; sourceTree = "<group>"; };
+			200000014 /* ChannelDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelDetailView.swift; sourceTree = "<group>"; };
 		200000015 /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
 		200000016 /* VideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRowView.swift; sourceTree = "<group>"; };
 		200000017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		200000019 /* MeTube.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MeTube.entitlements; sourceTree = "<group>"; };
 		200000020 /* YouTubeStreamExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
+		200000021 /* MeTubeAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeTubeAPIService.swift; sourceTree = "<group>"; };
 		2BCF4ABC875044960A321F21 /* PlayerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlayerConfig.swift; path = MeTube/Models/PlayerConfig.swift; sourceTree = SOURCE_ROOT; };
-		4E184F31BF701DD6A0668F2F /* YouTubeSDKPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = YouTubeSDKPlayerView.swift; path = MeTube/Views/YouTubeSDKPlayerView.swift; sourceTree = SOURCE_ROOT; };
-		5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusEntity.swift; path = MeTube/Models/Persistence/StatusEntity.swift; sourceTree = SOURCE_ROOT; };
-		85644FF4BBFE1D7727820ECC /* VideoEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VideoEntity.swift; path = MeTube/Models/Persistence/VideoEntity.swift; sourceTree = SOURCE_ROOT; };
-		8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusRepository.swift; path = MeTube/Repositories/StatusRepository.swift; sourceTree = SOURCE_ROOT; };
-		9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HubSyncManager.swift; path = MeTube/Services/Sync/HubSyncManager.swift; sourceTree = SOURCE_ROOT; };
-		9FE54DF8A09FCE1A6E60C9DD /* VideoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VideoRepository.swift; path = MeTube/Repositories/VideoRepository.swift; sourceTree = SOURCE_ROOT; };
-		A8AF423DBD7CC0C08E0734E3 /* ChannelRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChannelRepository.swift; path = MeTube/Repositories/ChannelRepository.swift; sourceTree = SOURCE_ROOT; };
-		BB7777777777777777777777 /* SharedTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedTypes.swift; path = MeTube/Shared/SharedTypes.swift; sourceTree = SOURCE_ROOT; };
-		C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusSyncManager.swift; path = MeTube/Services/Sync/StatusSyncManager.swift; sourceTree = SOURCE_ROOT; };
-		DF6148879EF59164E980DFE2 /* ModelConverters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ModelConverters.swift; path = MeTube/Models/ModelConverters.swift; sourceTree = SOURCE_ROOT; };
-		E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubServerService.swift; sourceTree = "<group>"; };
-		E1EF0D332EE8C7E400762E56 /* MeTube-tvOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeTube-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E1EF0DC12EE8D45200762E56 /* TVChannelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVChannelsView.swift; sourceTree = "<group>"; };
-		E1EF0DC22EE8D45200762E56 /* TVFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVFeedView.swift; sourceTree = "<group>"; };
-		E1EF0DC32EE8D45200762E56 /* TVLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLoginView.swift; sourceTree = "<group>"; };
-		E1EF0DC42EE8D45200762E56 /* TVVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVVideoPlayerView.swift; sourceTree = "<group>"; };
-		E1EF0DC52EE8D45200762E56 /* TVVideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVVideoRowView.swift; sourceTree = "<group>"; };
-		E1EF0DCC2EE8D50800762E56 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = MeTube/Assets.xcassets; sourceTree = SOURCE_ROOT; };
-		E1EF0DCE2EE8D67600762E56 /* ChannelRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelRepository.swift; sourceTree = "<group>"; };
-		E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusRepository.swift; sourceTree = "<group>"; };
-		E1EF0DD02EE8D67600762E56 /* VideoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoRepository.swift; sourceTree = "<group>"; };
-		E60943A59224648B1E37CF1D /* PlatformUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlatformUtilities.swift; path = MeTube/Shared/PlatformUtilities.swift; sourceTree = SOURCE_ROOT; };
-/* End PBXFileReference section */
+			4E184F31BF701DD6A0668F2F /* YouTubeSDKPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = YouTubeSDKPlayerView.swift; path = MeTube/Views/YouTubeSDKPlayerView.swift; sourceTree = SOURCE_ROOT; };
+			5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusEntity.swift; path = MeTube/Models/Persistence/StatusEntity.swift; sourceTree = SOURCE_ROOT; };
+			8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusRepository.swift; path = MeTube/Repositories/StatusRepository.swift; sourceTree = SOURCE_ROOT; };
+			BB7777777777777777777777 /* SharedTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedTypes.swift; path = MeTube/Shared/SharedTypes.swift; sourceTree = SOURCE_ROOT; };
+			C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StatusSyncManager.swift; path = MeTube/Services/Sync/StatusSyncManager.swift; sourceTree = SOURCE_ROOT; };
+			E1EF0D332EE8C7E400762E56 /* MeTube-tvOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeTube-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+			E1EF0DC12EE8D45200762E56 /* TVChannelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVChannelsView.swift; sourceTree = "<group>"; };
+			E1EF0DC22EE8D45200762E56 /* TVFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVFeedView.swift; sourceTree = "<group>"; };
+			E1EF0DC42EE8D45200762E56 /* TVVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVVideoPlayerView.swift; sourceTree = "<group>"; };
+			E1EF0DC52EE8D45200762E56 /* TVVideoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVVideoRowView.swift; sourceTree = "<group>"; };
+			E1EF0DCC2EE8D50800762E56 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = MeTube/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+			E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusRepository.swift; sourceTree = "<group>"; };
+			E60943A59224648B1E37CF1D /* PlatformUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PlatformUtilities.swift; path = MeTube/Shared/PlatformUtilities.swift; sourceTree = SOURCE_ROOT; };
+	/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		300000001 /* Frameworks */ = {
@@ -161,24 +124,22 @@
 			);
 			sourceTree = "<group>";
 		};
-		400000001 /* MeTube */ = {
-			isa = PBXGroup;
-			children = (
-				200000018 /* Info.plist */,
-				200000019 /* MeTube.entitlements */,
-				400000002 /* App */,
-				400000003 /* Models */,
-				E1EF0DD12EE8D67600762E56 /* Repositories */,
-				400000006 /* Services */,
-				400000004 /* ViewModels */,
-				400000005 /* Views */,
-				A8AF423DBD7CC0C08E0734E3 /* ChannelRepository.swift */,
-				8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */,
-				9FE54DF8A09FCE1A6E60C9DD /* VideoRepository.swift */,
-			);
-			path = MeTube;
-			sourceTree = "<group>";
-		};
+			400000001 /* MeTube */ = {
+				isa = PBXGroup;
+				children = (
+					200000018 /* Info.plist */,
+					200000019 /* MeTube.entitlements */,
+					400000002 /* App */,
+					400000003 /* Models */,
+					E1EF0DD12EE8D67600762E56 /* Repositories */,
+					400000006 /* Services */,
+					400000004 /* ViewModels */,
+					400000005 /* Views */,
+					8A9942C992EF80B80D4ABBBB /* StatusRepository.swift */,
+				);
+				path = MeTube;
+				sourceTree = "<group>";
+			};
 		400000002 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -188,22 +149,17 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		400000003 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				0673A8972EE30C8400C31341 /* AppSettings.swift */,
-				200000003 /* Channel.swift */,
-				200000004 /* Video.swift */,
-				200000005 /* YouTubeAPIModels.swift */,
-				85644FF4BBFE1D7727820ECC /* VideoEntity.swift */,
-				1697480D86B3E079E8226D5B /* ChannelEntity.swift */,
-				5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */,
-				DF6148879EF59164E980DFE2 /* ModelConverters.swift */,
-				2BCF4ABC875044960A321F21 /* PlayerConfig.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
+			400000003 /* Models */ = {
+				isa = PBXGroup;
+				children = (
+					200000003 /* Channel.swift */,
+					200000004 /* Video.swift */,
+					5C4C48BCB5080CA3AE37E6FF /* StatusEntity.swift */,
+					2BCF4ABC875044960A321F21 /* PlayerConfig.swift */,
+				);
+				path = Models;
+				sourceTree = "<group>";
+			};
 		400000004 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -216,7 +172,6 @@
 		400000005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				200000011 /* LoginView.swift */,
 				200000012 /* FeedView.swift */,
 				200000013 /* ChannelsView.swift */,
 				200000014 /* ChannelDetailView.swift */,
@@ -228,21 +183,18 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		400000006 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				0673A8952EE3044800C31341 /* Logger.swift */,
-				200000006 /* YouTubeService.swift */,
-				200000007 /* CloudKitService.swift */,
-				200000008 /* AuthenticationManager.swift */,
-				200000020 /* YouTubeStreamExtractor.swift */,
-				E1B0B1E02EE63B2F00AF77A6 /* HubServerService.swift */,
-				9CF94752A0C02F9817766FD7 /* HubSyncManager.swift */,
-				C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
+			400000006 /* Services */ = {
+				isa = PBXGroup;
+				children = (
+					0673A8952EE3044800C31341 /* Logger.swift */,
+					200000007 /* CloudKitService.swift */,
+					200000021 /* MeTubeAPIService.swift */,
+					200000020 /* YouTubeStreamExtractor.swift */,
+					C1C94D0CAA478A201645F9B4 /* StatusSyncManager.swift */,
+				);
+				path = Services;
+				sourceTree = "<group>";
+			};
 		400000008 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -274,23 +226,20 @@
 			children = (
 				E1EF0DC12EE8D45200762E56 /* TVChannelsView.swift */,
 				E1EF0DC22EE8D45200762E56 /* TVFeedView.swift */,
-				E1EF0DC32EE8D45200762E56 /* TVLoginView.swift */,
 				E1EF0DC42EE8D45200762E56 /* TVVideoPlayerView.swift */,
 				E1EF0DC52EE8D45200762E56 /* TVVideoRowView.swift */,
 			);
 			path = tvOS;
 			sourceTree = "<group>";
 		};
-		E1EF0DD12EE8D67600762E56 /* Repositories */ = {
-			isa = PBXGroup;
-			children = (
-				E1EF0DCE2EE8D67600762E56 /* ChannelRepository.swift */,
-				E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */,
-				E1EF0DD02EE8D67600762E56 /* VideoRepository.swift */,
-			);
-			path = Repositories;
-			sourceTree = "<group>";
-		};
+			E1EF0DD12EE8D67600762E56 /* Repositories */ = {
+				isa = PBXGroup;
+				children = (
+					E1EF0DCF2EE8D67600762E56 /* StatusRepository.swift */,
+				);
+				path = Repositories;
+				sourceTree = "<group>";
+			};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -387,91 +336,68 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		500000002 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				100000001 /* MeTubeApp.swift in Sources */,
-				100000002 /* ContentView.swift in Sources */,
-				100000003 /* Channel.swift in Sources */,
-				100000004 /* Video.swift in Sources */,
-				100000005 /* YouTubeAPIModels.swift in Sources */,
-				100000006 /* YouTubeService.swift in Sources */,
-				100000007 /* CloudKitService.swift in Sources */,
-				100000008 /* AuthenticationManager.swift in Sources */,
-				E1B0B1E12EE63B2F00AF77A6 /* HubServerService.swift in Sources */,
-				100000018 /* YouTubeStreamExtractor.swift in Sources */,
-				0673A8962EE3044800C31341 /* Logger.swift in Sources */,
-				100000009 /* FeedViewModel.swift in Sources */,
-				100000010 /* PlayerViewModel.swift in Sources */,
-				100000011 /* LoginView.swift in Sources */,
-				100000012 /* FeedView.swift in Sources */,
-				100000013 /* ChannelsView.swift in Sources */,
-				0673A8982EE30C8400C31341 /* AppSettings.swift in Sources */,
-				100000014 /* ChannelDetailView.swift in Sources */,
-				100000015 /* VideoPlayerView.swift in Sources */,
-				100000016 /* VideoRowView.swift in Sources */,
-				3E0E48ACAC479999A727A93B /* VideoEntity.swift in Sources */,
-				80BA4D0684715B4706447404 /* ChannelEntity.swift in Sources */,
-				E53945E3B2E6C8A907E1851C /* StatusEntity.swift in Sources */,
-				15F3424394ADF866D92169BE /* VideoRepository.swift in Sources */,
-				0F8444D09091048ECB3B1724 /* ChannelRepository.swift in Sources */,
-				5BD041818E1A3B782FFEF745 /* StatusRepository.swift in Sources */,
-				F2A84B5E8E1DAE2964CF20E2 /* HubSyncManager.swift in Sources */,
-				B50D40F4ABD9FCD448507532 /* StatusSyncManager.swift in Sources */,
-				D63945F4B4452FBB80E3274F /* ModelConverters.swift in Sources */,
-				B6B9483EA9F3CC47B7E77883 /* PlayerConfig.swift in Sources */,
-				C2164322B1C913958BE0DCD9 /* YouTubeSDKPlayerView.swift in Sources */,
-				AA1111111111111111111111 /* PlatformUtilities.swift in Sources */,
-				AA7777777777777777777777 /* SharedTypes.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E1EF0D2F2EE8C7E400762E56 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E1EF0D9E2EE8D31D00762E56 /* YouTubeAPIModels.swift in Sources */,
-				E1EF0D9F2EE8D31D00762E56 /* FeedView.swift in Sources */,
-				E1EF0DA02EE8D31D00762E56 /* ChannelDetailView.swift in Sources */,
-				E1EF0DA12EE8D31D00762E56 /* Logger.swift in Sources */,
-				E1EF0DC72EE8D45200762E56 /* TVVideoRowView.swift in Sources */,
-				E1EF0DC82EE8D45200762E56 /* TVLoginView.swift in Sources */,
-				E1EF0DC92EE8D45200762E56 /* TVFeedView.swift in Sources */,
-				E1EF0DCA2EE8D45200762E56 /* TVVideoPlayerView.swift in Sources */,
-				E1EF0DCB2EE8D45200762E56 /* TVChannelsView.swift in Sources */,
-				E1EF0DA22EE8D31D00762E56 /* AuthenticationManager.swift in Sources */,
-				E1EF0DA32EE8D31D00762E56 /* PlayerConfig.swift in Sources */,
-				E1EF0DA42EE8D31D00762E56 /* AppSettings.swift in Sources */,
-				E1EF0DA52EE8D31D00762E56 /* ContentView.swift in Sources */,
-				E1EF0DA62EE8D31D00762E56 /* PlayerViewModel.swift in Sources */,
-				E1EF0DA72EE8D31D00762E56 /* ChannelEntity.swift in Sources */,
-				E1EF0DD22EE8D67600762E56 /* StatusRepository.swift in Sources */,
-				E1EF0DD32EE8D67600762E56 /* VideoRepository.swift in Sources */,
-				E1EF0DD42EE8D67600762E56 /* ChannelRepository.swift in Sources */,
-				E1EF0DA82EE8D31D00762E56 /* HubSyncManager.swift in Sources */,
-				E1EF0DA92EE8D31D00762E56 /* StatusEntity.swift in Sources */,
-				E1EF0DAA2EE8D31D00762E56 /* FeedViewModel.swift in Sources */,
-				E1EF0DBC2EE8D36A00762E56 /* SharedTypes.swift in Sources */,
-				E1EF0DBE2EE8D36A00762E56 /* PlatformUtilities.swift in Sources */,
-				E1EF0DAB2EE8D31D00762E56 /* CloudKitService.swift in Sources */,
-				E1EF0DAC2EE8D31D00762E56 /* LoginView.swift in Sources */,
-				E1EF0DAD2EE8D31D00762E56 /* VideoRowView.swift in Sources */,
-				E1EF0DAE2EE8D31D00762E56 /* MeTubeApp.swift in Sources */,
-				E1EF0DAF2EE8D31D00762E56 /* ChannelsView.swift in Sources */,
-				E1EF0DB02EE8D31D00762E56 /* VideoPlayerView.swift in Sources */,
-				E1EF0DB12EE8D31D00762E56 /* HubServerService.swift in Sources */,
-				E1EF0DB22EE8D31D00762E56 /* YouTubeService.swift in Sources */,
-				E1EF0DB32EE8D31D00762E56 /* VideoEntity.swift in Sources */,
-				E1EF0DB42EE8D31D00762E56 /* Video.swift in Sources */,
-				E1EF0DB52EE8D31D00762E56 /* StatusSyncManager.swift in Sources */,
-				E1EF0DB62EE8D31D00762E56 /* Channel.swift in Sources */,
-				E1EF0DB72EE8D31D00762E56 /* YouTubeStreamExtractor.swift in Sources */,
-				E1EF0DB82EE8D31D00762E56 /* ModelConverters.swift in Sources */,
-				E1EF0DB92EE8D31D00762E56 /* YouTubeSDKPlayerView.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+			500000002 /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					100000001 /* MeTubeApp.swift in Sources */,
+					100000002 /* ContentView.swift in Sources */,
+					100000003 /* Channel.swift in Sources */,
+					100000004 /* Video.swift in Sources */,
+					100000021 /* MeTubeAPIService.swift in Sources */,
+					100000007 /* CloudKitService.swift in Sources */,
+					100000018 /* YouTubeStreamExtractor.swift in Sources */,
+					0673A8962EE3044800C31341 /* Logger.swift in Sources */,
+					100000009 /* FeedViewModel.swift in Sources */,
+					100000010 /* PlayerViewModel.swift in Sources */,
+					100000012 /* FeedView.swift in Sources */,
+					100000013 /* ChannelsView.swift in Sources */,
+					100000014 /* ChannelDetailView.swift in Sources */,
+					100000015 /* VideoPlayerView.swift in Sources */,
+					100000016 /* VideoRowView.swift in Sources */,
+					E53945E3B2E6C8A907E1851C /* StatusEntity.swift in Sources */,
+					5BD041818E1A3B782FFEF745 /* StatusRepository.swift in Sources */,
+					B50D40F4ABD9FCD448507532 /* StatusSyncManager.swift in Sources */,
+					B6B9483EA9F3CC47B7E77883 /* PlayerConfig.swift in Sources */,
+					C2164322B1C913958BE0DCD9 /* YouTubeSDKPlayerView.swift in Sources */,
+					AA1111111111111111111111 /* PlatformUtilities.swift in Sources */,
+					AA7777777777777777777777 /* SharedTypes.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
+			E1EF0D2F2EE8C7E400762E56 /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					E1EF0DE02EE8D31D00762E56 /* MeTubeAPIService.swift in Sources */,
+					E1EF0D9F2EE8D31D00762E56 /* FeedView.swift in Sources */,
+					E1EF0DA02EE8D31D00762E56 /* ChannelDetailView.swift in Sources */,
+					E1EF0DA12EE8D31D00762E56 /* Logger.swift in Sources */,
+					E1EF0DC72EE8D45200762E56 /* TVVideoRowView.swift in Sources */,
+					E1EF0DC92EE8D45200762E56 /* TVFeedView.swift in Sources */,
+					E1EF0DCA2EE8D45200762E56 /* TVVideoPlayerView.swift in Sources */,
+					E1EF0DCB2EE8D45200762E56 /* TVChannelsView.swift in Sources */,
+					E1EF0DA32EE8D31D00762E56 /* PlayerConfig.swift in Sources */,
+					E1EF0DA52EE8D31D00762E56 /* ContentView.swift in Sources */,
+					E1EF0DA62EE8D31D00762E56 /* PlayerViewModel.swift in Sources */,
+					E1EF0DD22EE8D67600762E56 /* StatusRepository.swift in Sources */,
+					E1EF0DA92EE8D31D00762E56 /* StatusEntity.swift in Sources */,
+					E1EF0DAA2EE8D31D00762E56 /* FeedViewModel.swift in Sources */,
+					E1EF0DBC2EE8D36A00762E56 /* SharedTypes.swift in Sources */,
+					E1EF0DBE2EE8D36A00762E56 /* PlatformUtilities.swift in Sources */,
+					E1EF0DAB2EE8D31D00762E56 /* CloudKitService.swift in Sources */,
+					E1EF0DAD2EE8D31D00762E56 /* VideoRowView.swift in Sources */,
+					E1EF0DAE2EE8D31D00762E56 /* MeTubeApp.swift in Sources */,
+					E1EF0DAF2EE8D31D00762E56 /* ChannelsView.swift in Sources */,
+					E1EF0DB02EE8D31D00762E56 /* VideoPlayerView.swift in Sources */,
+					E1EF0DB42EE8D31D00762E56 /* Video.swift in Sources */,
+					E1EF0DB52EE8D31D00762E56 /* StatusSyncManager.swift in Sources */,
+					E1EF0DB62EE8D31D00762E56 /* Channel.swift in Sources */,
+					E1EF0DB72EE8D31D00762E56 /* YouTubeStreamExtractor.swift in Sources */,
+					E1EF0DB92EE8D31D00762E56 /* YouTubeSDKPlayerView.swift in Sources */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

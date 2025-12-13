@@ -41,7 +41,6 @@ class StatusSyncManager {
     private let cloudKitService: CloudKitService
     private let container: CKContainer
     private let privateDatabase: CKDatabase
-    private let userId: String
     
     /// Concurrency guard to prevent overlapping syncs
     /// Thread-safe because this class is @MainActor - all access is serialized on main actor
@@ -76,13 +75,10 @@ class StatusSyncManager {
     }
     
     init(
-        statusRepository: StatusRepository,
-        //cloudKitService: CloudKitService = CloudKitService(),
-        userId: String
+        statusRepository: StatusRepository
     ) {
         self.statusRepository = statusRepository
         self.cloudKitService = CloudKitService()
-        self.userId = userId
         self.container = CKContainer(identifier: StatusSyncConfig.containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
     }
@@ -406,7 +402,6 @@ class StatusSyncManager {
             let record = CKRecord(recordType: StatusSyncConfig.recordType, recordID: recordID)
             record["videoId"] = status.videoId
             record["status"] = status.status
-            record["userId"] = userId
             record["lastModified"] = status.lastModified
             record["playbackPosition"] = status.playbackPosition
             return record

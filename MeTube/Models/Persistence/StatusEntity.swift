@@ -16,6 +16,19 @@ enum WatchStatus: String, Codable {
     case skipped    // User chose to skip this video
 }
 
+extension WatchStatus {
+    func toVideoStatus() -> VideoStatus {
+        switch self {
+        case .watched:
+            return .watched
+        case .skipped:
+            return .skipped
+        case .unwatched, .unknown:
+            return .unwatched
+        }
+    }
+}
+
 /// SwiftData entity representing a video's watch status
 @Model
 final class StatusEntity {

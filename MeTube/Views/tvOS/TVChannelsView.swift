@@ -11,7 +11,6 @@ import SwiftData
 #if os(tvOS)
 struct TVChannelsView: View {
     @EnvironmentObject var feedViewModel: FeedViewModel
-    @EnvironmentObject var authManager: AuthenticationManager
     @Binding var selectedFilter: ChannelFilter
     @Binding var searchText: String
     @Binding var isEditingSearch: Bool
@@ -449,13 +448,13 @@ struct TVEmptyChannelVideosView: View {
 }
 
 #Preview {
-    let schema = Schema([VideoEntity.self, ChannelEntity.self, StatusEntity.self])
+    let schema = Schema([StatusEntity.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: schema, configurations: [config])
     let context = ModelContext(container)
     let viewModel = FeedViewModel(modelContext: context)
     
-    return TVChannelsView(
+    TVChannelsView(
         selectedFilter: .constant(.withUnseenVideos),
         searchText: .constant(""),
         isEditingSearch: .constant(false),
@@ -465,6 +464,5 @@ struct TVEmptyChannelVideosView: View {
         isInChannelDetail: .constant(false)
     )
         .environmentObject(viewModel)
-        .environmentObject(AuthenticationManager())
 }
 #endif
