@@ -330,18 +330,33 @@ struct VideoPlayerView: View {
             positionIndicatorView
             actionButtonsView
             
-            // Info button (portrait only)
-            Button(action: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showingVideoInfo = true
+            HStack(spacing: 24) {
+                // Info button (portrait only)
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showingVideoInfo = true
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "info.circle")
+                        Text("More Info")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
                 }
-            }) {
-                HStack {
-                    Image(systemName: "info.circle")
-                    Text("More Info")
+                
+                // Open in YouTube button (portrait only)
+                Button(action: {
+                    openInYouTubeApp()
+                }) {
+                    HStack(spacing: 6) {
+                        YouTubeLogoMark()
+                        Text("YouTube")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.7))
                 }
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.7))
+                .accessibilityLabel("Open in YouTube")
             }
             .padding(.bottom, 8)
         }
@@ -915,6 +930,54 @@ struct VideoPlayerView: View {
         cleanupPlayer()
         onGoToChannel?(video.channelId)
     }
+
+    private func openInYouTubeApp() {
+        appLog("Open in YouTube tapped", category: .player, level: .info, context: [
+            "videoId": video.id
+        ])
+
+        player?.pause()
+
+        let encodedVideoId = video.id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? video.id
+        guard let webURL = URL(string: "https://www.youtube.com/watch?v=\(encodedVideoId)") else {
+            appLog("Failed to create YouTube watch URL", category: .player, level: .error, context: [
+                "videoId": video.id
+            ])
+            return
+        }
+
+        let candidateAppURLs = [
+            URL(string: "youtube://www.youtube.com/watch?v=\(encodedVideoId)"),
+            URL(string: "youtube://\(encodedVideoId)"),
+            URL(string: "vnd.youtube://www.youtube.com/watch?v=\(encodedVideoId)"),
+            URL(string: "vnd.youtube://\(encodedVideoId)")
+        ].compactMap { $0 }
+
+        openFirstAvailableURL(candidateAppURLs, fallbackURL: webURL)
+    }
+
+    private func openFirstAvailableURL(_ urls: [URL], fallbackURL: URL, index: Int = 0) {
+        guard index < urls.count else {
+            UIApplication.shared.open(fallbackURL, options: [:]) { success in
+                appLog("Opened YouTube watch URL fallback (\(success))", category: .player, level: .debug, context: [
+                    "url": fallbackURL.absoluteString
+                ])
+            }
+            return
+        }
+
+        let url = urls[index]
+        UIApplication.shared.open(url, options: [:]) { success in
+            if success {
+                appLog("Opened YouTube app URL", category: .player, level: .debug, context: [
+                    "url": url.absoluteString
+                ])
+                return
+            }
+
+            self.openFirstAvailableURL(urls, fallbackURL: fallbackURL, index: index + 1)
+        }
+    }
     
     /// Handles swipe gestures for player navigation
     private func handleSwipeGesture(value: DragGesture.Value) {
@@ -1300,6 +1363,23 @@ struct AirPlayButton: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+// MARK: - YouTube Logo Mark
+
+private struct YouTubeLogoMark: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.red)
+            Image(systemName: "play.fill")
+                .font(.system(size: 6, weight: .bold))
+                .foregroundColor(.white)
+                .offset(x: 0.5)
+        }
+        .frame(width: 18, height: 12)
+        .accessibilityHidden(true)
+    }
 }
 
 // MARK: - Share Button for AirPlay/External Playback
